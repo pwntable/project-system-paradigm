@@ -1,0 +1,1967 @@
+<!DOCTYPE html>
+<html lang="en" class="dark">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>ShopEZ Malaysia - Middleware Performance Simulator</title>
+    <meta name="description" content="Interactive simulator comparing synchronous vs asynchronous checkout systems for ShopEZ Malaysia's Q4 infrastructure upgrade.">
+    <!-- Tailwind CSS CDN -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script>
+        tailwind.config = {
+            darkMode: 'class',
+            theme: {
+                extend: {
+                    colors: {
+                        slate: {
+                            850: '#1e293b',
+                            950: '#020617',
+                        }
+                    },
+                    fontFamily: {
+                        sans: ['Inter', 'system-ui', 'sans-serif'],
+                        mono: ['JetBrains Mono', 'Fira Code', 'monospace'],
+                    },
+                }
+            }
+        }
+    </script>
+    <!-- Lucide Icons -->
+    <script src="https://unpkg.com/lucide@latest"></script>
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=JetBrains+Mono:wght@400;500;700&display=swap');
+        
+        body {
+            font-family: 'Inter', sans-serif;
+            font-size: clamp(13px, 1.2vw, 16px);
+        }
+        
+        .code-font {
+            font-family: 'JetBrains Mono', monospace;
+        }
+
+        /* Custom Scrollbar */
+        ::-webkit-scrollbar {
+            width: 6px;
+            height: 6px;
+        }
+        ::-webkit-scrollbar-track {
+            background: #0f172a;
+        }
+        ::-webkit-scrollbar-thumb {
+            background: #334155;
+            border-radius: 3px;
+        }
+        ::-webkit-scrollbar-thumb:hover {
+            background: #475569;
+        }
+
+        /* Floating particles animation */
+        @keyframes float-particle {
+            0% {
+                transform: translate(0, 0) scale(1.3);
+                opacity: 1;
+            }
+            100% {
+                transform: translate(var(--tx), var(--ty)) scale(0.8);
+                opacity: 0;
+            }
+        }
+
+        .particle {
+            position: absolute;
+            width: 22px;
+            height: 22px;
+            border-radius: 50%;
+            pointer-events: none;
+            z-index: 50;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 12px;
+        }
+
+        /* Pulse highlights */
+        .pulse-accent-amber {
+            animation: pulse-amber 2s infinite;
+        }
+        .pulse-accent-emerald {
+            animation: pulse-emerald 2s infinite;
+        }
+
+        @keyframes pulse-amber {
+            0%, 100% { box-shadow: 0 0 0 0px rgba(245, 158, 11, 0.4); }
+            50% { box-shadow: 0 0 0 10px rgba(245, 158, 11, 0); }
+        }
+        @keyframes pulse-emerald {
+            0%, 100% { box-shadow: 0 0 0 0px rgba(16, 185, 129, 0.4); }
+            50% { box-shadow: 0 0 0 10px rgba(16, 185, 129, 0); }
+        }
+
+        /* WS-1: Onboarding overlay */
+        @keyframes fadeIn {
+            from { opacity: 0; }
+            to { opacity: 1; }
+        }
+        @keyframes fadeOut {
+            from { opacity: 1; }
+            to { opacity: 0; }
+        }
+        @keyframes slideUp {
+            from { transform: translateY(30px); opacity: 0; }
+            to { transform: translateY(0); opacity: 1; }
+        }
+        @keyframes slideDown {
+            from { transform: translateY(0); opacity: 1; }
+            to { transform: translateY(30px); opacity: 0; }
+        }
+        #onboarding-overlay {
+            animation: fadeIn 0.5s ease-out forwards;
+        }
+        #onboarding-overlay .onboarding-card {
+            animation: slideUp 0.6s ease-out 0.2s both;
+        }
+        #onboarding-overlay.dismissing {
+            animation: fadeOut 0.4s ease-in forwards;
+        }
+        #onboarding-overlay.dismissing .onboarding-card {
+            animation: slideDown 0.3s ease-in forwards;
+        }
+
+        /* WS-7: Step 1 attention pulse after onboarding */
+        @keyframes attentionPulse {
+            0%, 100% { box-shadow: 0 0 0 0px rgba(99, 102, 241, 0.6); }
+            50% { box-shadow: 0 0 0 12px rgba(99, 102, 241, 0); }
+        }
+        .attention-pulse {
+            animation: attentionPulse 1.5s ease-in-out 5;
+        }
+
+        /* WS-4: Summary modal */
+        @keyframes summarySlideUp {
+            from { transform: translateY(100%); opacity: 0; }
+            to { transform: translateY(0); opacity: 1; }
+        }
+        @keyframes summarySlideDown {
+            from { transform: translateY(0); opacity: 1; }
+            to { transform: translateY(100%); opacity: 0; }
+        }
+        #summary-modal {
+            animation: summarySlideUp 0.5s ease-out forwards;
+        }
+        #summary-modal.dismissing {
+            animation: summarySlideDown 0.4s ease-in forwards;
+        }
+
+        /* WS-3: SVG flow line animation */
+        @keyframes flowDash {
+            to { stroke-dashoffset: -20; }
+        }
+        .flow-line-animated {
+            animation: flowDash 1s linear infinite;
+        }
+
+        /* WS-6: Toast animation */
+        @keyframes toastIn {
+            from { transform: translateY(10px); opacity: 0; }
+            to { transform: translateY(0); opacity: 1; }
+        }
+        @keyframes toastOut {
+            from { transform: translateY(0); opacity: 1; }
+            to { transform: translateY(-10px); opacity: 0; }
+        }
+
+        /* WS-7: Breadcrumb stepper */
+        .step-connector {
+            height: 2px;
+            flex: 1;
+            background: #334155;
+            transition: background 0.5s ease;
+        }
+        .step-connector.completed {
+            background: #10b981;
+        }
+        .step-dot {
+            width: 28px;
+            height: 28px;
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 12px;
+            font-weight: 700;
+            transition: all 0.3s ease;
+            border: 2px solid #334155;
+            background: #0f172a;
+            color: #64748b;
+        }
+        .step-dot.active {
+            border-color: #6366f1;
+            background: rgba(99, 102, 241, 0.15);
+            color: #818cf8;
+            box-shadow: 0 0 12px rgba(99, 102, 241, 0.3);
+        }
+        .step-dot.completed {
+            border-color: #10b981;
+            background: rgba(16, 185, 129, 0.15);
+            color: #34d399;
+        }
+
+        /* Pause button pulse */
+        .pause-pulse {
+            animation: pulse-amber 1.5s infinite;
+        }
+    </style>
+</head>
+<body class="bg-slate-950 text-slate-100 min-h-screen flex flex-col antialiased">
+
+    <!-- WS-1: Onboarding Overlay -->
+    <div id="onboarding-overlay" class="fixed inset-0 z-[9999] bg-slate-950/85 backdrop-blur-md flex items-center justify-center p-6">
+        <div class="onboarding-card bg-slate-900 border border-slate-700 rounded-2xl p-8 max-w-lg w-full shadow-2xl text-center">
+            <div class="inline-flex items-center justify-center w-16 h-16 rounded-full bg-indigo-500/15 border border-indigo-500/30 mb-5">
+                <span class="text-3xl">🎯</span>
+            </div>
+            <h2 class="text-2xl font-bold text-white mb-2">Welcome to the ShopEZ Simulator</h2>
+            <p class="text-sm text-slate-400 mb-6 leading-relaxed">This interactive tool demonstrates why ShopEZ Malaysia needs to upgrade its checkout system. Follow these 3 simple steps:</p>
+            
+            <div class="space-y-4 text-left mb-8">
+                <div class="flex items-start gap-4 bg-slate-950 rounded-xl p-4 border border-slate-800">
+                    <div class="w-8 h-8 rounded-full bg-sky-500/15 border border-sky-500/30 flex items-center justify-center text-sky-400 font-bold text-sm shrink-0">①</div>
+                    <div>
+                        <h4 class="font-semibold text-white text-sm">Read the Background</h4>
+                        <p class="text-xs text-slate-400 mt-0.5">Understand how ShopEZ currently processes checkout orders.</p>
+                    </div>
+                </div>
+                <div class="flex items-start gap-4 bg-slate-950 rounded-xl p-4 border border-slate-800">
+                    <div class="w-8 h-8 rounded-full bg-amber-500/15 border border-amber-500/30 flex items-center justify-center text-amber-400 font-bold text-sm shrink-0">②</div>
+                    <div>
+                        <h4 class="font-semibold text-white text-sm">Click "Step 1" — See the Problem</h4>
+                        <p class="text-xs text-slate-400 mt-0.5">Watch the old system crash under peak holiday traffic.</p>
+                    </div>
+                </div>
+                <div class="flex items-start gap-4 bg-slate-950 rounded-xl p-4 border border-slate-800">
+                    <div class="w-8 h-8 rounded-full bg-emerald-500/15 border border-emerald-500/30 flex items-center justify-center text-emerald-400 font-bold text-sm shrink-0">③</div>
+                    <div>
+                        <h4 class="font-semibold text-white text-sm">Click "Step 2" — See the Solution</h4>
+                        <p class="text-xs text-slate-400 mt-0.5">Watch the upgraded system handle the same traffic flawlessly.</p>
+                    </div>
+                </div>
+            </div>
+            
+            <button id="onboarding-dismiss" class="w-full py-3 px-6 bg-indigo-600 hover:bg-indigo-500 text-white rounded-xl font-bold text-sm transition-all shadow-lg shadow-indigo-500/25 hover:shadow-indigo-500/40">
+                Start Presentation →
+            </button>
+            <p class="text-xs text-slate-500 mt-3">💡 After both demos, compare results in the "Head-to-Head Comparison" table.</p>
+        </div>
+    </div>
+
+    <!-- Top Navigation / Banner -->
+    <header class="border-b border-slate-800 bg-slate-900/80 backdrop-blur sticky top-0 z-50 px-6 py-4">
+        <div class="max-w-7xl mx-auto flex flex-col lg:flex-row justify-between items-center gap-4">
+            <div class="flex items-center gap-3">
+                <div class="p-2 bg-emerald-500/10 text-emerald-400 rounded-lg border border-emerald-500/20">
+                    <i data-lucide="shuffle" class="w-6 h-6"></i>
+                </div>
+                <div>
+                    <h1 class="text-lg font-bold tracking-tight text-white flex items-center gap-2">
+                        ShopEZ Malaysia <span class="text-xs bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 px-2 py-0.5 rounded-full font-mono">Q4 Upgrade Presentation</span>
+                    </h1>
+                    <p class="text-xs text-slate-400">Comparing Customer Wait-Times: Old Checkout vs. Smart Queue Upgrade</p>
+                </div>
+            </div>
+            <div class="flex items-center gap-2 bg-slate-950 border border-slate-800 px-3 py-1.5 rounded-lg">
+                <span class="w-2.5 h-2.5 rounded-full bg-emerald-500 animate-pulse"></span>
+                <span class="text-xs font-mono text-slate-300">Audience: Non-Technical Decision Makers</span>
+            </div>
+        </div>
+    </header>
+
+    <main class="flex-1 max-w-7xl w-full mx-auto p-4 md:p-6 grid grid-cols-1 xl:grid-cols-12 gap-6">
+        
+        <!-- LEFT COLUMN (xl:col-span-4) -->
+        <section class="xl:col-span-4 space-y-6 xl:sticky xl:top-[90px] xl:max-h-[calc(100vh-120px)] xl:overflow-y-auto pr-2 pb-6">
+            
+            <!-- WS-7: Breadcrumb Stepper -->
+            <div class="bg-slate-900 border border-slate-800 rounded-xl p-4 shadow-xl">
+                <div class="flex items-center gap-2 mb-3">
+                    <i data-lucide="map" class="w-4 h-4 text-indigo-400"></i>
+                    <span class="text-xs font-bold text-slate-400 uppercase tracking-wider">Presentation Progress</span>
+                </div>
+                <div class="flex items-center gap-2">
+                    <div class="flex flex-col items-center gap-1">
+                        <div class="step-dot active" id="step-dot-1" title="Step 1: Read the background to understand the problem">①</div>
+                        <span class="text-xs font-medium text-slate-400" id="step-label-1">Learn</span>
+                    </div>
+                    <div class="step-connector" id="step-conn-1"></div>
+                    <div class="flex flex-col items-center gap-1">
+                        <div class="step-dot" id="step-dot-2" title="Step 2: Run the old system demo to see the crash">②</div>
+                        <span class="text-xs font-medium text-slate-500" id="step-label-2">Old System</span>
+                    </div>
+                    <div class="step-connector" id="step-conn-2"></div>
+                    <div class="flex flex-col items-center gap-1">
+                        <div class="step-dot" id="step-dot-3" title="Step 3: Run the upgraded system demo to see the fix">③</div>
+                        <span class="text-xs font-medium text-slate-500" id="step-label-3">Upgrade</span>
+                    </div>
+                </div>
+            </div>
+
+            <!-- WS-7b: How ShopEZ Processes Checkout (MOVED UP — context before actions) -->
+            <div class="bg-slate-900 border border-slate-800 border-l-4 border-l-sky-500 rounded-xl p-5 shadow-xl">
+                <div class="flex justify-between items-center mb-3 pb-2 border-b border-slate-800">
+                    <div class="flex items-center gap-2">
+                        <i data-lucide="info" class="w-5 h-5 text-sky-400"></i>
+                        <h2 class="font-bold text-sm tracking-wide text-white uppercase">How ShopEZ Processes Checkout</h2>
+                    </div>
+                    <span class="text-xs font-semibold text-slate-500">HOW IT WORKS</span>
+                </div>
+                
+                <div class="space-y-3.5 text-xs">
+                    <div class="flex gap-3">
+                        <div class="p-2 bg-amber-500/10 text-amber-400 h-fit rounded-lg border border-amber-500/20 shrink-0">
+                            <i data-lucide="git-commit" class="w-5 h-5"></i>
+                        </div>
+                        <div>
+                            <h4 class="font-bold text-slate-200">The Old Way: "One-at-a-Time Checkout"</h4>
+                            <p class="text-slate-400 mt-0.5 leading-relaxed">
+                                Think of a restaurant with <strong>one cashier</strong> who takes your order, walks to the kitchen, waits for the chef to cook, then walks back to hand you the food — while the entire queue waits behind you. When the restaurant is busy, customers at the back give up and leave.
+                                <span class="block mt-1 text-slate-500 italic">In tech terms: the checkout system blocks the customer's browser while sequentially calling Payment, Stock, and Database services.</span>
+                            </p>
+                        </div>
+                    </div>
+                    
+                    <div class="flex gap-3 pt-3 border-t border-slate-800/60">
+                        <div class="p-2 bg-emerald-500/10 text-emerald-400 h-fit rounded-lg border border-emerald-500/20 shrink-0">
+                            <i data-lucide="layers" class="w-5 h-5"></i>
+                        </div>
+                        <div>
+                            <h4 class="font-bold text-slate-200">The Upgraded Way: "Smart Queue with Buzzer"</h4>
+                            <p class="text-slate-400 mt-0.5 leading-relaxed">
+                                Think of a <strong>fast-food restaurant with a buzzer system</strong>. You order at the counter, get a buzzer instantly, and sit down. Kitchen staff prepare your food in the background — no waiting in line. The counter is free for the next customer immediately.
+                                <span class="block mt-1 text-slate-500 italic">In tech terms: the system instantly confirms the order and queues it for background processing by dedicated staff.</span>
+                            </p>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- WS-7b: Presentation Mode Controller Card (MOVED DOWN — actions after context) -->
+            <div class="bg-gradient-to-br from-indigo-950/60 to-slate-900 border border-indigo-500/30 border-l-4 border-l-indigo-500 rounded-xl p-5 shadow-xl relative overflow-hidden">
+                <div class="absolute top-0 right-0 w-32 h-32 bg-indigo-500/10 rounded-full blur-2xl -mr-8 -mt-8 pointer-events-none"></div>
+                
+                <div class="flex items-center gap-2 mb-3 pb-2 border-b border-indigo-500/20">
+                    <i data-lucide="presentation" class="w-5 h-5 text-indigo-400"></i>
+                    <h2 class="font-bold text-sm tracking-wide text-indigo-300 uppercase">Guided Demo Tour</h2>
+                </div>
+                <p class="text-xs text-slate-300 mb-4 leading-relaxed">
+                    Click these two buttons in order. They automatically set up the best scenario to show the problem and the solution.
+                </p>
+
+                <div class="space-y-3">
+                    <!-- Step 1 Trigger -->
+                    <button id="tour-step-1" title="Runs a demo of the old checkout system under heavy traffic. Watch how shoppers get stuck waiting and give up." class="w-full text-left p-3.5 bg-slate-900 hover:bg-slate-850 border border-amber-500/40 hover:border-amber-500/80 rounded-lg transition group">
+                        <div class="flex justify-between items-center mb-1">
+                            <span class="text-xs font-bold text-amber-400 flex items-center gap-1.5 uppercase tracking-wider">
+                                <span class="bg-amber-400/10 text-amber-400 text-xs font-mono px-1.5 py-0.5 rounded">STEP 1</span>
+                                Show The Problem
+                            </span>
+                            <i data-lucide="chevron-right" class="w-4 h-4 text-amber-500 transform group-hover:translate-x-1 transition"></i>
+                        </div>
+                        <p class="text-xs text-slate-400">
+                            Simulate peak holiday traffic under the old system. Watch how checkout delays cause shoppers to <strong>give up and abandon their carts</strong>.
+                        </p>
+                    </button>
+
+                    <!-- Step 2 Trigger -->
+                    <button id="tour-step-2" title="Runs a demo of the upgraded smart queue system with the same traffic. Watch how every shopper gets instant confirmation." class="w-full text-left p-3.5 bg-slate-900 hover:bg-slate-850 border border-emerald-500/40 hover:border-emerald-500/80 rounded-lg transition group">
+                        <div class="flex justify-between items-center mb-1">
+                            <span class="text-xs font-bold text-emerald-400 flex items-center gap-1.5 uppercase tracking-wider">
+                                <span class="bg-emerald-400/10 text-emerald-400 text-xs font-mono px-1.5 py-0.5 rounded">STEP 2</span>
+                                Show The Solution
+                            </span>
+                            <i data-lucide="chevron-right" class="w-4 h-4 text-emerald-500 transform group-hover:translate-x-1 transition"></i>
+                        </div>
+                        <p class="text-xs text-slate-400">
+                            Apply the upgraded "Smart Buzzer" queue. Watch how shoppers get <strong>instant confirmation</strong> while background staff handle orders safely. <strong>100% sales kept!</strong>
+                        </p>
+                    </button>
+                </div>
+            </div>
+
+            <!-- Scenario Settings Panel (formerly "Advanced Sandbox Customizer") -->
+            <div class="bg-slate-900 border border-slate-800 rounded-xl p-5 shadow-xl">
+                <div class="flex items-center gap-2 mb-4 pb-3 border-b border-slate-800">
+                    <i data-lucide="sliders" class="w-5 h-5 text-indigo-400"></i>
+                    <h2 class="font-bold text-sm tracking-wide text-white uppercase">Scenario Settings</h2>
+                </div>
+
+                <!-- WS-6a: Preset Scenario Buttons -->
+                <div class="mb-4">
+                    <span class="text-xs font-medium text-slate-500 block mb-2">Quick Scenarios:</span>
+                    <div class="grid grid-cols-3 gap-2">
+                        <button id="preset-normal" title="A quiet weekday afternoon with low traffic" class="py-2 px-2 bg-slate-950 hover:bg-slate-800 border border-slate-700 hover:border-emerald-500/50 rounded-lg text-xs font-medium text-slate-300 hover:text-emerald-400 transition text-center">
+                            🟢 Normal Day
+                        </button>
+                        <button id="preset-flash" title="A 12.12 promotion event with moderate traffic surge" class="py-2 px-2 bg-slate-950 hover:bg-slate-800 border border-slate-700 hover:border-amber-500/50 rounded-lg text-xs font-medium text-slate-300 hover:text-amber-400 transition text-center">
+                            🟡 Flash Sale
+                        </button>
+                        <button id="preset-peak" title="Chinese New Year midnight rush with extreme traffic" class="py-2 px-2 bg-slate-950 hover:bg-slate-800 border border-slate-700 hover:border-rose-500/50 rounded-lg text-xs font-medium text-slate-300 hover:text-rose-400 transition text-center">
+                            🔴 Holiday Peak
+                        </button>
+                    </div>
+                    <div id="preset-toast" class="hidden mt-2 text-xs text-indigo-400 bg-indigo-500/10 border border-indigo-500/20 rounded-lg px-3 py-1.5 text-center font-medium"></div>
+                </div>
+
+                <div class="space-y-4 text-xs">
+                    <div>
+                        <div class="flex justify-between mb-1">
+                            <span class="text-slate-400 font-medium" title="How many shoppers try to buy during the simulation">How many shoppers arrive:</span>
+                            <span id="val-total-reqs" class="font-mono text-emerald-400 font-bold">100</span>
+                        </div>
+                        <input type="range" id="param-total-reqs" min="20" max="250" step="10" value="100" title="More shoppers = more stress on the system. Try 200+ to simulate a major sale event."
+                            class="w-full accent-emerald-500 bg-slate-800 rounded-lg appearance-none h-1.5 cursor-pointer">
+                    </div>
+
+                    <div>
+                        <div class="flex justify-between mb-1">
+                            <span class="text-slate-400 font-medium" title="How many shoppers can check out at the exact same time">Shoppers checking out at once:</span>
+                            <span id="val-concurrency" class="font-mono text-emerald-400 font-bold">15</span>
+                        </div>
+                        <input type="range" id="param-concurrency" min="1" max="40" step="1" value="15" title="Higher numbers mean more people fighting for checkout at the same time. 25+ creates heavy stress."
+                            class="w-full accent-emerald-500 bg-slate-800 rounded-lg appearance-none h-1.5 cursor-pointer">
+                    </div>
+
+                    <div>
+                        <div class="flex justify-between mb-1">
+                            <span class="text-slate-400 font-medium" title="How long a shopper will wait before getting frustrated and leaving">How long a shopper waits before giving up:</span>
+                            <span id="val-timeout" class="font-mono text-rose-400 font-bold">500 ms</span>
+                        </div>
+                        <input type="range" id="param-timeout" min="200" max="1500" step="50" value="500" title="Lower values = less patient shoppers. 500ms or less is realistic for impatient online shoppers."
+                            class="w-full accent-rose-500 bg-slate-800 rounded-lg appearance-none h-1.5 cursor-pointer">
+                    </div>
+
+                    <div class="pt-2 border-t border-slate-800/80">
+                        <div class="flex justify-between mb-1">
+                            <span class="text-slate-400 font-medium" title="Controls how fast the demo animation plays">Demo animation speed:</span>
+                            <span id="val-speed" class="font-mono text-amber-400 font-bold">1.25x</span>
+                        </div>
+                        <input type="range" id="param-speed" min="0.25" max="3" step="0.25" value="1.25" title="Speed up the demo for a quicker view, or slow it down to explain details."
+                            class="w-full accent-amber-500 bg-slate-800 rounded-lg appearance-none h-1.5 cursor-pointer">
+                    </div>
+
+                    <!-- WS-5: Revenue Impact Calculator -->
+                    <div class="pt-2 border-t border-slate-800/80">
+                        <div class="flex justify-between mb-1">
+                            <span class="text-slate-400 font-medium" title="Enter the average value of a single customer order to calculate estimated revenue loss">Average order value (RM):</span>
+                            <span class="font-mono text-emerald-400 font-bold">RM <input type="number" id="param-avg-order" value="150" min="1" max="10000" step="1" title="Enter your average order value in Ringgit to see estimated revenue impact" class="w-16 bg-slate-950 border border-slate-700 rounded px-1.5 py-0.5 text-emerald-400 font-mono font-bold text-xs text-right focus:border-emerald-500 focus:outline-none"></span>
+                        </div>
+                    </div>
+
+                    <!-- WS-6b: Backend speed toggle -->
+                    <div class="pt-2 border-t border-slate-800/80">
+                        <button id="toggle-backend" class="text-xs text-slate-500 hover:text-slate-300 transition flex items-center gap-1.5 mb-2">
+                            <i data-lucide="settings" class="w-3.5 h-3.5"></i>
+                            <span id="toggle-backend-label">⚙️ Fine-tune backend speeds ▸</span>
+                        </button>
+                        <div id="backend-sliders" class="hidden space-y-3">
+                            <div>
+                                <div class="flex justify-between mb-1">
+                                    <span class="text-slate-400 font-medium" title="How fast the payment processing service responds">Payment processing speed:</span>
+                                    <span id="val-latency-pay" class="font-mono text-amber-400 font-bold">150 ms</span>
+                                </div>
+                                <input type="range" id="param-latency-pay" min="50" max="500" step="10" value="150" title="Higher = slower payment processor. Try 400+ to simulate a very slow payment provider."
+                                    class="w-full accent-amber-500 bg-slate-800 rounded-lg appearance-none h-1.5 cursor-pointer">
+                            </div>
+                            <div>
+                                <div class="flex justify-between mb-1">
+                                    <span class="text-slate-400 font-medium" title="How fast the stock & warehouse system responds">Stock & warehouse speed:</span>
+                                    <span id="val-latency-inv" class="font-mono text-pink-400 font-bold">100 ms</span>
+                                </div>
+                                <input type="range" id="param-latency-inv" min="50" max="300" step="10" value="100" title="Higher = slower inventory checks. Try 250+ to simulate aging warehouse systems."
+                                    class="w-full accent-pink-500 bg-slate-800 rounded-lg appearance-none h-1.5 cursor-pointer">
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- WS-7c: Custom Run Triggers with clarification -->
+                <div class="mt-5">
+                    <p class="text-xs text-slate-500 mb-2 italic">Use these to run custom scenarios. For guided demos, use the tour buttons above.</p>
+                    <div class="grid grid-cols-2 gap-2">
+                        <button id="btn-run-p2p" title="Run the old checkout system with your custom settings" class="py-2.5 px-3 bg-amber-600 hover:bg-amber-500 text-white rounded-lg font-bold text-xs flex items-center justify-center gap-1.5 transition">
+                            <i data-lucide="play" class="w-4 h-4"></i> ▶ Demo Old System
+                        </button>
+                        <button id="btn-run-async" title="Run the upgraded smart queue system with your custom settings" class="py-2.5 px-3 bg-emerald-600 hover:bg-emerald-500 text-white rounded-lg font-bold text-xs flex items-center justify-center gap-1.5 transition">
+                            <i data-lucide="play" class="w-4 h-4"></i> ▶ Demo Upgraded
+                        </button>
+                    </div>
+                    <button id="btn-reset" title="Clear all results and reset the simulator to its initial state" class="w-full mt-2 py-1.5 px-3 bg-slate-950 hover:bg-slate-800 text-slate-400 rounded-lg font-semibold text-xs flex items-center justify-center gap-1.5 border border-slate-800 transition">
+                        <i data-lucide="rotate-ccw" class="w-3.5 h-3.5"></i> 🔄 Reset Everything
+                    </button>
+                </div>
+            </div>
+
+        </section>
+
+        <!-- RIGHT COLUMN (xl:col-span-8) -->
+        <section class="xl:col-span-8 flex flex-col gap-6">
+            
+            <!-- Real-time Interactive Flow Visualizer -->
+            <div class="bg-slate-900 border border-slate-700 rounded-xl p-6 shadow-xl relative overflow-hidden flex flex-col min-h-[400px] lg:min-h-[520px] xl:min-h-[580px]">
+                
+                <!-- Visualizer Header with gradient accent -->
+                <div class="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 pb-4 border-b border-slate-800 z-10 bg-gradient-to-r from-slate-800/30 to-transparent -mx-6 -mt-6 px-6 pt-6 mb-4 rounded-t-xl">
+                    <div class="flex items-center gap-2">
+                        <div class="w-3.5 h-3.5 rounded-full bg-amber-500 animate-pulse" id="visualizer-status-dot"></div>
+                        <h2 class="font-bold text-sm tracking-wide text-white uppercase flex items-center gap-2">
+                            Now Showing: 
+                            <span id="visualizer-title" class="text-amber-400 font-mono">Option A: Old Checkout (Customers Wait)</span>
+                        </h2>
+                    </div>
+                    <div class="flex flex-wrap gap-2 items-center">
+                        <!-- WS-7e: Pause/Resume Button -->
+                        <button id="btn-pause" title="Pause or resume the running simulation (Shortcut: Spacebar)" class="hidden mr-2 px-3 py-2 rounded-md font-bold text-xs bg-amber-500/15 border border-amber-500/30 text-amber-400 hover:bg-amber-500/25 transition items-center gap-1.5">
+                            <i data-lucide="pause" class="w-4 h-4" id="pause-icon"></i>
+                            <span id="pause-label">Pause</span>
+                        </button>
+                        
+                        <!-- Interactive Zoom & Panning Controls -->
+                        <div class="flex items-center gap-1 bg-slate-950 p-1 rounded-lg border border-slate-800 text-xs select-none">
+                            <span class="text-slate-500 px-1 font-bold text-[10px] sm:text-xs">ZOOM:</span>
+                            <button id="btn-zoom-out" type="button" title="Zoom Out" class="px-2 py-1 rounded bg-slate-900 hover:bg-slate-800 text-slate-300 font-bold border border-slate-800 text-[10px] sm:text-xs transition">-</button>
+                            <span id="txt-zoom-level" class="font-mono text-slate-300 px-1 font-bold text-[10px] sm:text-xs min-w-[32px] text-center">100%</span>
+                            <button id="btn-zoom-in" type="button" title="Zoom In" class="px-2 py-1 rounded bg-slate-900 hover:bg-slate-800 text-slate-300 font-bold border border-slate-800 text-[10px] sm:text-xs transition">+</button>
+                            <button id="btn-zoom-reset" type="button" title="Reset Zoom & Pan" class="px-1.5 py-1 rounded bg-slate-900 hover:bg-slate-800 text-slate-400 hover:text-slate-200 border border-slate-800 text-[10px] sm:text-xs transition">Reset</button>
+                        </div>
+
+                        <div class="flex gap-1 bg-slate-950 p-1 rounded-lg border border-slate-800 text-xs">
+                            <button id="tab-p2p" title="View the old checkout system layout" class="px-3 sm:px-4 py-2 rounded-md font-medium text-amber-400 bg-amber-500/10 border border-amber-500/20 transition">Option A: Old System</button>
+                            <button id="tab-async" title="View the upgraded smart queue layout" class="px-3 sm:px-4 py-2 rounded-md font-medium text-slate-400 hover:text-slate-200 transition">Option B: Upgraded</button>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Simulation Visual Field Arena -->
+                <div class="flex-1 relative bg-slate-950/70 border border-slate-850 rounded-lg overflow-hidden" id="visualizer-container">
+                    
+                    <!-- Dynamic Viewport Area -->
+                    <div id="visual-viewport" class="absolute top-0 left-0 right-0 bottom-28 origin-center select-none transition-transform duration-75">
+                        
+                        <!-- Nodes Grid Layout -->
+                        <div class="absolute inset-0 grid grid-cols-5 items-center p-4 gap-4 text-center select-none" id="node-container">
+                            
+                            <!-- Client Nodes Layer -->
+                            <div class="flex flex-col items-center justify-center gap-1.5 sm:gap-2 h-full">
+                                <div id="node-client" title="These are the shoppers browsing your website and trying to buy" class="w-12 h-12 sm:w-16 sm:h-16 rounded-full bg-slate-800 border-2 border-slate-600 flex items-center justify-center shadow-lg transition-all duration-300">
+                                    <i data-lucide="users" class="w-5 h-5 sm:w-7 sm:h-7 text-slate-300"></i>
+                                </div>
+                                <span class="text-[10px] sm:text-xs font-bold text-slate-400 leading-tight">SHOPPERS IN STORE</span>
+                                <!-- Live Connection Badge -->
+                                <span id="badge-active-conns" class="font-mono text-[9px] sm:text-xs bg-slate-900 border border-slate-800 text-slate-400 px-1.5 sm:px-2 py-0.5 sm:py-1 rounded mt-1">0 of 15 shoppers</span>
+                            </div>
+
+                            <!-- Core Checkout Counter Node -->
+                            <div class="flex flex-col items-center justify-center gap-1.5 sm:gap-2 h-full relative">
+                                <div id="node-order" title="This is ShopEZ's main server that receives and processes all orders" class="w-14 h-14 sm:w-18 sm:h-18 rounded-full bg-slate-800 border-2 border-slate-600 flex items-center justify-center shadow-lg transition-all duration-300">
+                                    <i data-lucide="network" class="w-6 h-6 sm:w-8 sm:h-8 text-indigo-400"></i>
+                                </div>
+                                <span class="text-[10px] sm:text-xs font-bold text-indigo-400 leading-tight">CHECKOUT COUNTER</span>
+                                <span id="badge-order-status" class="text-[9px] sm:text-xs text-slate-500 uppercase font-bold tracking-wider mt-1">Ready</span>
+                            </div>
+
+                            <!-- Dynamic Area: Direct services OR Queue Buffer system -->
+                            <div class="flex flex-col items-center justify-center gap-2 h-full col-span-2 relative" id="dynamic-middle-column">
+                                
+                                <!-- Option A Downstream Rows -->
+                                <div id="p2p-sub-layout" class="w-full h-full flex flex-col justify-around py-2 sm:py-4">
+                                    <!-- Payment Downstream -->
+                                    <div class="flex items-center gap-2 sm:gap-3 justify-start px-2 sm:px-4 w-full bg-slate-900/40 p-1.5 sm:p-2 rounded-lg border border-slate-800/40">
+                                        <div id="node-pay" title="This is the third-party payment processing service (e.g., bank, e-wallet)" class="w-10 h-10 sm:w-12 sm:h-12 rounded-full bg-slate-850 border border-slate-700 flex items-center justify-center shadow shrink-0">
+                                            <i data-lucide="credit-card" class="w-4.5 h-4.5 sm:w-5 sm:h-5 text-amber-400"></i>
+                                        </div>
+                                        <div class="text-left leading-tight">
+                                            <span class="text-[10px] sm:text-xs font-bold block text-slate-300">Payment Processing</span>
+                                            <span id="badge-pay-status" class="text-[9px] sm:text-xs text-slate-500 font-mono">~150ms per order</span>
+                                        </div>
+                                    </div>
+                                    <!-- Inventory Downstream -->
+                                    <div class="flex items-center gap-2 sm:gap-3 justify-start px-2 sm:px-4 w-full bg-slate-900/40 p-1.5 sm:p-2 rounded-lg border border-slate-800/40">
+                                        <div id="node-inv" title="This is the stock & warehouse system that checks and reserves inventory" class="w-10 h-10 sm:w-12 sm:h-12 rounded-full bg-slate-850 border border-slate-700 flex items-center justify-center shadow shrink-0">
+                                            <i data-lucide="package" class="w-4.5 h-4.5 sm:w-5 sm:h-5 text-pink-400"></i>
+                                        </div>
+                                        <div class="text-left leading-tight">
+                                            <span class="text-[10px] sm:text-xs font-bold block text-slate-300">Stock & Warehouse</span>
+                                            <span id="badge-inv-status" class="text-[9px] sm:text-xs text-slate-500 font-mono">~100ms per order</span>
+                                        </div>
+                                    </div>
+                                </div>
+
+                                <!-- Option B Asynchronous Queue Layout -->
+                                <div id="async-sub-layout" class="hidden w-full h-full flex flex-col justify-center items-center gap-3 sm:gap-4 py-2">
+                                    <div class="w-full flex flex-col items-center gap-1 sm:gap-1.5">
+                                        <span class="text-[10px] sm:text-xs font-bold text-emerald-400 uppercase flex items-center gap-1 sm:gap-1.5">
+                                            <i data-lucide="layers" class="w-3.5 h-3.5 sm:w-4 sm:h-4"></i> Smart Order Queue Board
+                                        </span>
+                                        <div id="queue-visual-container" class="w-[95%] h-11 sm:h-14 bg-slate-900 border border-slate-800 rounded-lg flex items-center justify-start px-2 sm:px-3 gap-1.5 sm:gap-2 overflow-x-auto">
+                                            <span class="text-slate-600 text-[10px] sm:text-xs w-full text-center font-medium">Queue is Empty</span>
+                                        </div>
+                                    </div>
+                                    <div class="w-full grid grid-cols-2 gap-1.5 sm:gap-2 px-1 sm:px-2">
+                                        <div class="bg-slate-900/60 border border-slate-800 p-1.5 sm:p-2 rounded-lg flex items-center gap-1.5 sm:gap-2 text-left" title="Payment processing service working in the background">
+                                            <i data-lucide="credit-card" class="w-4 h-4 sm:w-5 sm:h-5 text-amber-400 shrink-0"></i>
+                                            <div class="leading-none">
+                                                <span class="text-[10px] sm:text-xs font-bold block text-slate-400">PAYMENT</span>
+                                                <span id="async-pay-badge" class="text-[9px] sm:text-xs text-slate-500">Standby</span>
+                                            </div>
+                                        </div>
+                                        <div class="bg-slate-900/60 border border-slate-800 p-1.5 sm:p-2 rounded-lg flex items-center gap-1.5 sm:gap-2 text-left" title="Stock & warehouse service working in the background">
+                                            <i data-lucide="package" class="w-4 h-4 sm:w-5 sm:h-5 text-pink-400 shrink-0"></i>
+                                            <div class="leading-none">
+                                                <span class="text-[10px] sm:text-xs font-bold block text-slate-400">STOCK</span>
+                                                <span id="async-inv-badge" class="text-[9px] sm:text-xs text-slate-500">Standby</span>
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+
+                            <!-- Central Database / Sales Record Book Node -->
+                            <div class="flex flex-col items-center justify-center gap-1.5 sm:gap-2 h-full">
+                                <div id="node-db" title="This is the central database where all completed orders are permanently saved" class="w-12 h-12 sm:w-16 sm:h-16 rounded-full bg-slate-800 border-2 border-slate-600 flex items-center justify-center shadow-lg transition-all duration-300">
+                                    <i data-lucide="database" class="w-5 h-5 sm:w-7 sm:h-7 text-emerald-400"></i>
+                                </div>
+                                <span class="text-[10px] sm:text-xs font-bold text-emerald-400 leading-tight">SALES RECORD BOOK</span>
+                                <span id="badge-db-status" class="text-[9px] sm:text-xs text-slate-500 font-mono mt-1">~50ms write</span>
+                            </div>
+
+                        </div>
+
+                        <!-- WS-3c: Flow lines paths layer overlay (increased opacity + color) -->
+                        <svg class="absolute inset-0 w-full h-full pointer-events-none opacity-45 z-0">
+                            <line x1="10%" y1="50%" x2="30%" y2="50%" stroke="white" stroke-width="2.5" stroke-dasharray="5" />
+                            <g id="svg-p2p-paths">
+                                <line x1="30%" y1="50%" x2="50%" y2="25%" stroke="#f59e0b" stroke-width="2.5" stroke-dasharray="8" class="flow-line-animated" />
+                                <line x1="30%" y1="50%" x2="50%" y2="75%" stroke="#f59e0b" stroke-width="2.5" stroke-dasharray="8" class="flow-line-animated" />
+                                <line x1="50%" y1="25%" x2="70%" y2="25%" stroke="#f59e0b" stroke-width="2" stroke-dasharray="5" class="flow-line-animated" />
+                                <line x1="50%" y1="75%" x2="70%" y2="75%" stroke="#f59e0b" stroke-width="2" stroke-dasharray="5" class="flow-line-animated" />
+                                <line x1="70%" y1="25%" x2="90%" y2="50%" stroke="#f59e0b" stroke-width="2.5" stroke-dasharray="8" class="flow-line-animated" />
+                                <line x1="70%" y1="75%" x2="90%" y2="50%" stroke="#f59e0b" stroke-width="2.5" stroke-dasharray="8" class="flow-line-animated" />
+                            </g>
+                            <g id="svg-async-paths" class="hidden">
+                                <line x1="30%" y1="50%" x2="50%" y2="50%" stroke="#10b981" stroke-width="2.5" stroke-dasharray="8" class="flow-line-animated" />
+                                <line x1="50%" y1="50%" x2="90%" y2="50%" stroke="#10b981" stroke-width="2.5" stroke-dasharray="8" class="flow-line-animated" />
+                            </g>
+                        </svg>
+
+                        <!-- Async background staff indicators -->
+                        <div id="async-workers-display" class="hidden absolute top-3 right-3 flex flex-col gap-1.5 z-30 max-w-[140px]">
+                            <span class="text-xs font-bold text-slate-500 uppercase block text-right">Background Staff</span>
+                            <div class="space-y-1">
+                                <div class="bg-slate-900/90 border border-slate-800 text-xs px-2 py-1 rounded flex justify-between gap-3 shadow-md" id="worker-card-0" title="Background staff member processing orders from the queue">
+                                    <span class="text-indigo-400 font-semibold font-mono">Staff A</span> <span class="text-slate-500 font-mono status">Idle</span>
+                                </div>
+                                <div class="bg-slate-900/90 border border-slate-800 text-xs px-2 py-1 rounded flex justify-between gap-3 shadow-md" id="worker-card-1" title="Background staff member processing orders from the queue">
+                                    <span class="text-indigo-400 font-semibold font-mono">Staff B</span> <span class="text-slate-500 font-mono status">Idle</span>
+                                </div>
+                                <div class="bg-slate-900/90 border border-slate-800 text-xs px-2 py-1 rounded flex justify-between gap-3 shadow-md" id="worker-card-2" title="Background staff member processing orders from the queue">
+                                    <span class="text-indigo-400 font-semibold font-mono">Staff C</span> <span class="text-slate-500 font-mono status">Idle</span>
+                                </div>
+                            </div>
+                        </div>
+
+                    </div>
+
+                    <!-- WS-4: Summary Modal Container (hidden by default, shown after sim) -->
+                    <div id="summary-modal-container" class="hidden absolute bottom-0 left-0 right-0 z-40"></div>
+
+                    <!-- Presenter Dynamic Actions Commentary Overlays -->
+                    <div class="absolute bottom-3 left-3 right-3 bg-slate-900/95 border border-slate-800 rounded-lg p-2.5 z-20 max-h-28 overflow-y-auto text-xs text-slate-300 font-mono shadow-inner relative">
+                        <div class="flex items-center gap-1.5 text-indigo-400 font-bold sticky top-0 bg-slate-900 py-0.5 border-b border-slate-800">
+                            <i data-lucide="message-square-code" class="w-4 h-4"></i> Live Commentary
+                        </div>
+                        <!-- WS-7f: Scroll indicator -->
+                        <div id="log-scroll-indicator" class="hidden absolute top-8 right-3 text-xs text-slate-600 bg-slate-900/90 px-2 py-0.5 rounded border border-slate-800">↑ scroll for more</div>
+                        <div id="telemetry-log" class="space-y-1 mt-1">
+                            <div class="text-slate-500">// Welcome! Click "Step 1" or "Step 2" in the left panel to start the guided demo...</div>
+                        </div>
+                    </div>
+
+                </div>
+            </div>
+
+            <!-- Business & Customer Experience (CX) Metrics Dashboard -->
+            <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+                
+                <!-- Business Impact Telemetry Card -->
+                <div class="bg-slate-900 border border-slate-800 rounded-xl p-5 shadow-xl flex flex-col justify-between">
+                    <div>
+                        <div class="flex items-center justify-between mb-4 pb-3 border-b border-slate-800">
+                            <div class="flex items-center gap-2">
+                                <i data-lucide="heart-handshake" class="w-5 h-5 text-indigo-400"></i>
+                                <h3 class="font-bold text-sm tracking-wide text-white uppercase">Live Customer Experience</h3>
+                            </div>
+                            <span class="text-xs bg-indigo-500/10 text-indigo-400 px-2 py-0.5 rounded-full font-bold">BUSINESS VALUE</span>
+                        </div>
+
+                        <!-- Main metric stats -->
+                        <div class="grid grid-cols-2 gap-2.5 mb-4">
+                            <div class="bg-slate-950 p-2 rounded-lg border border-slate-800 text-center" title="Total number of checkout attempts processed so far">
+                                <span class="text-xs text-slate-500 font-bold block mb-1">Carts Processed</span>
+                                <span id="metric-processed" class="font-mono text-base font-bold text-slate-300">0</span>
+                            </div>
+                            <div class="bg-slate-950 p-2 rounded-lg border border-slate-800 text-center" title="Shoppers who successfully completed their purchase">
+                                <span class="text-xs text-emerald-400 font-bold block mb-1">Complete Sales</span>
+                                <span id="metric-success" class="font-mono text-base font-bold text-emerald-400">0</span>
+                            </div>
+                            <div class="bg-slate-950 p-2 rounded-lg border border-slate-800 text-center" title="Shoppers who gave up waiting and abandoned their cart">
+                                <span class="text-xs text-rose-400 font-bold block mb-1">Abandoned Carts</span>
+                                <span id="metric-dropped" class="font-mono text-base font-bold text-rose-500">0</span>
+                            </div>
+                            <!-- WS-5: Revenue Impact Live Counter -->
+                            <div class="bg-slate-950 p-2 rounded-lg border border-rose-500/20 text-center" title="Estimated revenue lost from abandoned carts (abandoned carts × average order value)">
+                                <span class="text-xs text-rose-400 font-bold block mb-1">💰 Est. Revenue Lost</span>
+                                <span id="metric-revenue" class="font-mono text-base font-bold text-rose-500">RM 0.00</span>
+                            </div>
+                        </div>
+
+                        <!-- Latency translated to customer pain -->
+                        <div class="space-y-3 text-xs mb-4">
+                            <div>
+                                <div class="flex justify-between mb-1">
+                                    <span class="text-slate-400 font-medium" title="Average time each shopper waited at checkout">Avg. Checkout Wait Time:</span>
+                                    <span id="metric-avg-latency" class="font-mono text-white font-bold">0 ms</span>
+                                </div>
+                                <div class="w-full bg-slate-950 rounded-full h-1.5 overflow-hidden">
+                                    <div id="bar-avg-latency" class="bg-indigo-500 h-1.5 transition-all duration-300" style="width: 0%"></div>
+                                </div>
+                            </div>
+
+                            <div>
+                                <div class="flex justify-between mb-1">
+                                    <span class="text-slate-400 font-medium" title="The longest any shopper had to wait">Worst Checkout Wait Time:</span>
+                                    <span id="metric-max-latency" class="font-mono text-white font-bold">0 ms</span>
+                                </div>
+                                <div class="w-full bg-slate-950 rounded-full h-1.5 overflow-hidden">
+                                    <div id="bar-max-latency" class="bg-amber-500 h-1.5 transition-all duration-300" style="width: 0%"></div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Sandbox Progress Bar -->
+                    <div class="bg-slate-950 p-2.5 rounded-lg border border-slate-850">
+                        <div class="flex justify-between text-xs mb-1">
+                            <span class="text-slate-500 uppercase tracking-wider">Demo Progress</span>
+                            <span id="sim-progress-pct" class="font-mono text-emerald-400 font-bold">0%</span>
+                        </div>
+                        <div class="w-full bg-slate-900 rounded-full h-1.5">
+                            <div id="sim-progress-bar" class="bg-emerald-500 h-1.5 rounded-full transition-all duration-100" style="width: 0%"></div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Strategic Historical Benchmark Comparison Board -->
+                <div class="bg-slate-900 border border-slate-800 rounded-xl p-5 shadow-xl">
+                    <div class="flex items-center gap-2 mb-4 pb-3 border-b border-slate-800">
+                        <i data-lucide="bar-chart-3" class="w-5 h-5 text-emerald-400"></i>
+                        <h3 class="font-bold text-sm tracking-wide text-white uppercase">Head-to-Head Comparison</h3>
+                    </div>
+
+                    <div class="space-y-4 text-xs">
+                        <div class="grid grid-cols-3 gap-2 border-b border-slate-800 pb-1 text-slate-500 font-bold uppercase tracking-wider text-xs">
+                            <span>Metric</span>
+                            <span class="text-center">Option A (Old)</span>
+                            <span class="text-center">Option B (Upgraded)</span>
+                        </div>
+
+                        <div class="grid grid-cols-3 gap-2 py-1 items-center border-b border-slate-800/40">
+                            <span class="text-slate-400 font-medium">Completed Sales</span>
+                            <span id="hist-p2p-success" class="text-center font-mono font-bold text-slate-500">-</span>
+                            <span id="hist-async-success" class="text-center font-mono font-bold text-slate-500">-</span>
+                        </div>
+
+                        <div class="grid grid-cols-3 gap-2 py-1 items-center border-b border-slate-800/40">
+                            <span class="text-slate-400 font-medium">Avg. Checkout Wait</span>
+                            <span id="hist-p2p-avg-lat" class="text-center font-mono font-bold text-slate-500">-</span>
+                            <span id="hist-async-avg-lat" class="text-center font-mono font-bold text-slate-500">-</span>
+                        </div>
+
+                        <div class="grid grid-cols-3 gap-2 py-1 items-center border-b border-slate-800/40">
+                            <span class="text-slate-400 font-medium">Worst Checkout Wait</span>
+                            <span id="hist-p2p-max-lat" class="text-center font-mono font-bold text-slate-500">-</span>
+                            <span id="hist-async-max-lat" class="text-center font-mono font-bold text-slate-500">-</span>
+                        </div>
+
+                        <div class="grid grid-cols-3 gap-2 py-1 items-center border-b border-slate-800/40">
+                            <span class="text-slate-400 font-medium">Shoppers Who Gave Up</span>
+                            <span id="hist-p2p-timeouts" class="text-center font-mono font-bold text-slate-500">-</span>
+                            <span id="hist-async-timeouts" class="text-center font-mono font-bold text-slate-500">-</span>
+                        </div>
+
+                        <!-- WS-5: Revenue impact row -->
+                        <div class="grid grid-cols-3 gap-2 py-1 items-center border-b border-slate-800/40">
+                            <span class="text-slate-400 font-medium">💰 Est. Revenue Impact</span>
+                            <span id="hist-p2p-revenue" class="text-center font-mono font-bold text-slate-500">-</span>
+                            <span id="hist-async-revenue" class="text-center font-mono font-bold text-slate-500">-</span>
+                        </div>
+
+                        <div class="grid grid-cols-3 gap-2 py-1 items-center">
+                            <span class="text-slate-400 font-medium">Peak Hour Reliability</span>
+                            <span class="text-center text-rose-400 text-xs font-bold">❌ Breaks Down Under Pressure</span>
+                            <span class="text-center text-emerald-400 text-xs font-bold">✅ Handles Any Rush Smoothly</span>
+                        </div>
+                    </div>
+
+                    <!-- WS-6c: Export Results Button -->
+                    <div class="mt-4 pt-3 border-t border-slate-800 relative">
+                        <button id="btn-export" title="Copy a formatted summary of the comparison results to your clipboard" class="w-full py-2 px-3 bg-slate-950 hover:bg-slate-800 text-slate-400 hover:text-slate-200 rounded-lg font-medium text-xs flex items-center justify-center gap-1.5 border border-slate-800 transition">
+                            📋 Copy Results to Clipboard
+                        </button>
+                        <div id="export-toast" class="hidden absolute -top-8 left-1/2 -translate-x-1/2 bg-emerald-500/20 border border-emerald-500/30 text-emerald-400 text-xs font-bold px-3 py-1 rounded-lg"></div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Presenter's Secret Slidesheet Panel -->
+            <div class="bg-slate-900 border border-slate-800 rounded-xl p-5 shadow-xl">
+                <h3 class="font-bold text-white text-sm mb-3 tracking-wide uppercase flex items-center gap-2">
+                    <i data-lucide="speech" class="w-5 h-5 text-indigo-400"></i> Presenter's Talking Points
+                </h3>
+                <div class="grid grid-cols-1 md:grid-cols-2 gap-4 text-xs text-slate-300">
+                    <div class="p-3 bg-slate-950 border border-slate-850 rounded-lg">
+                        <span class="font-bold text-amber-400 block mb-1">Why the Old System Fails at Peak Hours:</span>
+                        <ul class="list-disc list-inside space-y-1 text-slate-400 text-xs">
+                            <li>When one shopper's payment is slow, every shopper behind them is stuck waiting too — like a single checkout lane.</li>
+                            <li>Under heavy traffic, the system runs out of capacity and starts dropping shoppers entirely.</li>
+                            <li>The customer sees an error on their screen and leaves — a lost sale that's nearly impossible to recover.</li>
+                        </ul>
+                    </div>
+                    <div class="p-3 bg-slate-950 border border-slate-850 rounded-lg">
+                        <span class="font-bold text-emerald-400 block mb-1">Why the Upgraded System Wins:</span>
+                        <ul class="list-disc list-inside space-y-1 text-slate-400 text-xs">
+                            <li>Every shopper gets an instant "Order Received!" confirmation — no waiting at all.</li>
+                            <li>Orders are safely queued, and dedicated background staff process them at a steady, reliable pace.</li>
+                            <li>Even during the biggest rush, no shopper is turned away — 100% of sales are captured.</li>
+                        </ul>
+                    </div>
+                </div>
+            </div>
+
+        </section>
+
+    </main>
+
+    <!-- Footer -->
+    <footer class="mt-auto border-t border-slate-800 bg-slate-900/40 text-center py-4 text-xs text-slate-500">
+        <div class="max-w-7xl mx-auto px-6 flex flex-col md:flex-row justify-between items-center gap-2">
+            <span>ShopEZ Malaysia Q4 Infrastructure Refactoring Project</span>
+            <span class="font-mono">Created with High Performance Visual Core</span>
+        </div>
+    </footer>
+
+    <!-- Internal Simulation Scripting Logic -->
+    <script>
+        // State Management
+        const state = {
+            totalRequests: 100,
+            concurrency: 15,
+            clientTimeout: 500, // ms
+            simSpeed: 1.25,
+            activeMode: 'p2p', // 'p2p' or 'async'
+            
+            // Baseline Latencies in Milliseconds
+            latencyPay: 150,
+            latencyInv: 100,
+            latencyDb: 50,
+            avgOrderValue: 150, // RM
+
+            isRunning: false,
+            isPaused: false, // WS-7e
+            processedCount: 0,
+            results: [],
+            
+            // History benchmark slots
+            history: {
+                p2p: null,
+                async: null
+            },
+
+            // Active request states
+            activeRequests: 0,
+            activeWorkers: [
+                { id: 0, status: 'idle', request: null },
+                { id: 1, status: 'idle', request: null },
+                { id: 2, status: 'idle', request: null }
+            ],
+            queue: [],
+
+            // WS-7a: Breadcrumb stepper state
+            currentStep: 1, // 1=Learn, 2=OldSystem, 3=Upgrade
+            completedSteps: new Set()
+        };
+
+        // DOM elements
+        const elements = {
+            paramTotalReqs: document.getElementById('param-total-reqs'),
+            valTotalReqs: document.getElementById('val-total-reqs'),
+            paramConcurrency: document.getElementById('param-concurrency'),
+            valConcurrency: document.getElementById('val-concurrency'),
+            paramTimeout: document.getElementById('param-timeout'),
+            valTimeout: document.getElementById('val-timeout'),
+            paramSpeed: document.getElementById('param-speed'),
+            valSpeed: document.getElementById('val-speed'),
+            paramAvgOrder: document.getElementById('param-avg-order'),
+            paramLatencyPay: document.getElementById('param-latency-pay'),
+            valLatencyPay: document.getElementById('val-latency-pay'),
+            paramLatencyInv: document.getElementById('param-latency-inv'),
+            valLatencyInv: document.getElementById('val-latency-inv'),
+
+            btnRunP2P: document.getElementById('btn-run-p2p'),
+            btnRunAsync: document.getElementById('btn-run-async'),
+            btnReset: document.getElementById('btn-reset'),
+            btnPause: document.getElementById('btn-pause'),
+            pauseIcon: document.getElementById('pause-icon'),
+            pauseLabel: document.getElementById('pause-label'),
+            btnExport: document.getElementById('btn-export'),
+
+            tabP2P: document.getElementById('tab-p2p'),
+            tabAsync: document.getElementById('tab-async'),
+
+            visualizerTitle: document.getElementById('visualizer-title'),
+            visualizerStatusDot: document.getElementById('visualizer-status-dot'),
+            visualizerContainer: document.getElementById('visualizer-container'),
+            
+            p2pSubLayout: document.getElementById('p2p-sub-layout'),
+            asyncSubLayout: document.getElementById('async-sub-layout'),
+            svgP2PPaths: document.getElementById('svg-p2p-paths'),
+            svgAsyncPaths: document.getElementById('svg-async-paths'),
+            queueVisualContainer: document.getElementById('queue-visual-container'),
+            asyncWorkersDisplay: document.getElementById('async-workers-display'),
+
+            telemetryLog: document.getElementById('telemetry-log'),
+            logScrollIndicator: document.getElementById('log-scroll-indicator'),
+            badgeActiveConns: document.getElementById('badge-active-conns'),
+            badgeOrderStatus: document.getElementById('badge-order-status'),
+            badgePayStatus: document.getElementById('badge-pay-status'),
+            badgeInvStatus: document.getElementById('badge-inv-status'),
+            badgeDbStatus: document.getElementById('badge-db-status'),
+
+            metricProcessed: document.getElementById('metric-processed'),
+            metricSuccess: document.getElementById('metric-success'),
+            metricDropped: document.getElementById('metric-dropped'),
+            metricRevenue: document.getElementById('metric-revenue'),
+            metricAvgLatency: document.getElementById('metric-avg-latency'),
+            metricMaxLatency: document.getElementById('metric-max-latency'),
+            barAvgLatency: document.getElementById('bar-avg-latency'),
+            barMaxLatency: document.getElementById('bar-max-latency'),
+            simProgressPct: document.getElementById('sim-progress-pct'),
+            simProgressBar: document.getElementById('sim-progress-bar'),
+
+            // Node components
+            nodeClient: document.getElementById('node-client'),
+            nodeOrder: document.getElementById('node-order'),
+            nodeDb: document.getElementById('node-db'),
+
+            // Benchmarks
+            histP2pSuccess: document.getElementById('hist-p2p-success'),
+            histAsyncSuccess: document.getElementById('hist-async-success'),
+            histP2pAvgLat: document.getElementById('hist-p2p-avg-lat'),
+            histAsyncAvgLat: document.getElementById('hist-async-avg-lat'),
+            histP2pMaxLat: document.getElementById('hist-p2p-max-lat'),
+            histAsyncMaxLat: document.getElementById('hist-async-max-lat'),
+            histP2pTimeouts: document.getElementById('hist-p2p-timeouts'),
+            histAsyncTimeouts: document.getElementById('hist-async-timeouts'),
+            histP2pRevenue: document.getElementById('hist-p2p-revenue'),
+            histAsyncRevenue: document.getElementById('hist-async-revenue'),
+
+            // Summary modal
+            summaryModalContainer: document.getElementById('summary-modal-container'),
+
+            // Guided Tour Buttons
+            tourStep1: document.getElementById('tour-step-1'),
+            tourStep2: document.getElementById('tour-step-2'),
+
+            // Presets
+            presetNormal: document.getElementById('preset-normal'),
+            presetFlash: document.getElementById('preset-flash'),
+            presetPeak: document.getElementById('preset-peak'),
+            presetToast: document.getElementById('preset-toast'),
+
+            // Backend toggle
+            toggleBackend: document.getElementById('toggle-backend'),
+            toggleBackendLabel: document.getElementById('toggle-backend-label'),
+            backendSliders: document.getElementById('backend-sliders'),
+
+            // Export
+            exportToast: document.getElementById('export-toast'),
+
+            // Breadcrumbs
+            stepDot1: document.getElementById('step-dot-1'),
+            stepDot2: document.getElementById('step-dot-2'),
+            stepDot3: document.getElementById('step-dot-3'),
+            stepLabel1: document.getElementById('step-label-1'),
+            stepLabel2: document.getElementById('step-label-2'),
+            stepLabel3: document.getElementById('step-label-3'),
+            stepConn1: document.getElementById('step-conn-1'),
+            stepConn2: document.getElementById('step-conn-2'),
+
+            // Onboarding
+            onboardingOverlay: document.getElementById('onboarding-overlay'),
+            onboardingDismiss: document.getElementById('onboarding-dismiss')
+        };
+
+        // WS-7e: Pause-aware sleep utility
+        function sleep(ms) {
+            return new Promise(resolve => {
+                const adjusted = ms / state.simSpeed;
+                let elapsed = 0;
+                const interval = 16; // ~60fps check
+                const check = () => {
+                    if (state.isPaused) {
+                        setTimeout(check, 50);
+                        return;
+                    }
+                    elapsed += interval;
+                    if (elapsed >= adjusted) {
+                        resolve();
+                    } else {
+                        setTimeout(check, interval);
+                    }
+                };
+                setTimeout(check, interval);
+            });
+        }
+
+        // Initialize UI values
+        function syncControls() {
+            state.totalRequests = parseInt(elements.paramTotalReqs.value);
+            state.concurrency = parseInt(elements.paramConcurrency.value);
+            state.clientTimeout = parseInt(elements.paramTimeout.value);
+            state.simSpeed = parseFloat(elements.paramSpeed.value);
+            state.avgOrderValue = parseFloat(elements.paramAvgOrder.value) || 150;
+            state.latencyPay = parseInt(elements.paramLatencyPay.value);
+            state.latencyInv = parseInt(elements.paramLatencyInv.value);
+
+            elements.valTotalReqs.innerText = state.totalRequests;
+            elements.valConcurrency.innerText = state.concurrency;
+            elements.valTimeout.innerText = `${state.clientTimeout} ms`;
+            elements.valSpeed.innerText = `${state.simSpeed}x`;
+            elements.valLatencyPay.innerText = `${state.latencyPay} ms`;
+            elements.valLatencyInv.innerText = `${state.latencyInv} ms`;
+            
+            elements.badgeActiveConns.innerText = `0 of ${state.concurrency} shoppers`;
+        }
+
+        // Setup Event Listeners
+        elements.paramTotalReqs.addEventListener('input', syncControls);
+        elements.paramConcurrency.addEventListener('input', syncControls);
+        elements.paramTimeout.addEventListener('input', syncControls);
+        elements.paramSpeed.addEventListener('input', syncControls);
+        elements.paramAvgOrder.addEventListener('input', syncControls);
+        elements.paramLatencyPay.addEventListener('input', syncControls);
+        elements.paramLatencyInv.addEventListener('input', syncControls);
+
+        // Tab Switching Actions
+        elements.tabP2P.addEventListener('click', () => switchMode('p2p'));
+        elements.tabAsync.addEventListener('click', () => switchMode('async'));
+
+        function switchMode(mode) {
+            if (state.isRunning) return;
+            state.activeMode = mode;
+
+            if (mode === 'p2p') {
+                elements.tabP2P.className = "px-4 py-2 rounded-md font-medium text-amber-400 bg-amber-500/10 border border-amber-500/20 transition";
+                elements.tabAsync.className = "px-4 py-2 rounded-md font-medium text-slate-400 hover:text-slate-200 transition";
+                elements.p2pSubLayout.classList.remove('hidden');
+                elements.asyncSubLayout.classList.add('hidden');
+                elements.svgP2PPaths.classList.remove('hidden');
+                elements.svgAsyncPaths.classList.add('hidden');
+                elements.asyncWorkersDisplay.classList.add('hidden');
+                elements.visualizerTitle.innerText = "Option A: Old Checkout (Customers Wait)";
+                elements.visualizerTitle.className = "text-amber-400 font-mono";
+                elements.visualizerStatusDot.className = "w-3.5 h-3.5 rounded-full bg-amber-500 animate-pulse";
+                logTelemetry("Viewing: Old system — shoppers must wait in line.");
+            } else {
+                elements.tabAsync.className = "px-4 py-2 rounded-md font-medium text-emerald-400 bg-emerald-500/10 border border-emerald-500/20 transition";
+                elements.tabP2P.className = "px-4 py-2 rounded-md font-medium text-slate-400 hover:text-slate-200 transition";
+                elements.p2pSubLayout.classList.add('hidden');
+                elements.asyncSubLayout.classList.remove('hidden');
+                elements.svgP2PPaths.classList.add('hidden');
+                elements.svgAsyncPaths.classList.remove('hidden');
+                elements.asyncWorkersDisplay.classList.remove('hidden');
+                elements.visualizerTitle.innerText = "Option B: Smart Queue (Instant Confirmation)";
+                elements.visualizerTitle.className = "text-emerald-400 font-mono";
+                elements.visualizerStatusDot.className = "w-3.5 h-3.5 rounded-full bg-emerald-500 animate-pulse";
+                logTelemetry("Viewing: Upgraded system — shoppers get instant confirmation.");
+            }
+        }
+
+        // Telemetry logger
+        function logTelemetry(message, type = 'info') {
+            const timeStr = new Date().toLocaleTimeString('en-MY', { hour12: false });
+            let colorClass = 'text-slate-300';
+            if (type === 'success') colorClass = 'text-emerald-400 font-medium';
+            if (type === 'warning') colorClass = 'text-amber-400';
+            if (type === 'error') colorClass = 'text-rose-500 font-bold';
+
+            const logItem = document.createElement('div');
+            logItem.className = `text-xs ${colorClass}`;
+            logItem.innerHTML = `<span class="text-slate-500">[${timeStr}]</span> ${message}`;
+            elements.telemetryLog.appendChild(logItem);
+            
+            // Smooth auto-scroll
+            logItem.scrollIntoView({ behavior: 'smooth', block: 'end' });
+
+            // WS-7f: Update scroll indicator
+            updateScrollIndicator();
+        }
+
+        // WS-7f: Scroll indicator logic
+        function updateScrollIndicator() {
+            const log = elements.telemetryLog.parentElement;
+            if (log.scrollHeight > log.clientHeight && log.scrollTop < log.scrollHeight - log.clientHeight - 20) {
+                elements.logScrollIndicator.classList.remove('hidden');
+            } else {
+                elements.logScrollIndicator.classList.add('hidden');
+            }
+        }
+        // Listen to scroll events on log container
+        if (elements.telemetryLog.parentElement) {
+            elements.telemetryLog.parentElement.addEventListener('scroll', updateScrollIndicator);
+        }
+
+        // Particle generator for visual flow
+        function createParticle(startEl, endEl, color = 'emerald', emoji = '🛒') {
+            const container = elements.visualizerContainer;
+            const startRect = startEl.getBoundingClientRect();
+            const endRect = endEl.getBoundingClientRect();
+            const containerRect = container.getBoundingClientRect();
+
+            const x1 = startRect.left - containerRect.left + (startRect.width / 2);
+            const y1 = startRect.top - containerRect.top + (startRect.height / 2);
+            const x2 = endRect.left - containerRect.left + (endRect.width / 2);
+            const y2 = endRect.top - containerRect.top + (endRect.height / 2);
+
+            const particle = document.createElement('div');
+            particle.className = `particle bg-${color}-500 text-white font-bold`;
+            particle.innerHTML = emoji;
+            
+            if (color === 'amber') particle.className += ' shadow-[0_0_12px_rgba(245,158,11,0.8)] bg-amber-500';
+            if (color === 'emerald') particle.className += ' shadow-[0_0_12px_rgba(16,185,129,0.8)] bg-emerald-500';
+            if (color === 'rose') particle.className += ' shadow-[0_0_12px_rgba(244,63,94,0.8)] bg-rose-500';
+
+            particle.style.left = `${x1 - 11}px`;
+            particle.style.top = `${y1 - 11}px`;
+            
+            const dx = x2 - x1;
+            const dy = y2 - y1;
+            particle.style.setProperty('--tx', `${dx}px`);
+            particle.style.setProperty('--ty', `${dy}px`);
+
+            const duration = Math.max(150, Math.min(1000, 400 / state.simSpeed));
+            particle.style.animation = `float-particle ${duration}ms linear forwards`;
+
+            container.appendChild(particle);
+
+            setTimeout(() => {
+                particle.remove();
+            }, duration);
+        }
+
+        // Active telemetry calculations UI update
+        function updateMetrics() {
+            const total = state.results.length;
+            const successes = state.results.filter(r => r.success);
+            const failures = state.results.filter(r => !r.success);
+            
+            elements.metricProcessed.innerText = total;
+            elements.metricSuccess.innerText = successes.length;
+            elements.metricDropped.innerText = failures.length;
+
+            // WS-5: Revenue impact
+            const revenueLost = failures.length * state.avgOrderValue;
+            elements.metricRevenue.innerText = formatRM(revenueLost);
+
+            const latencies = state.results.map(r => r.latency);
+            const avg = latencies.length ? (latencies.reduce((a, b) => a + b, 0) / latencies.length).toFixed(1) : "0";
+            const max = latencies.length ? Math.max(...latencies).toFixed(1) : "0";
+
+            elements.metricAvgLatency.innerText = `${avg} ms`;
+            elements.metricMaxLatency.innerText = `${max} ms`;
+
+            const progressPct = ((total / state.totalRequests) * 100).toFixed(0);
+            elements.simProgressPct.innerText = `${progressPct}%`;
+            elements.simProgressBar.style.width = `${progressPct}%`;
+
+            const avgPct = Math.min(100, (parseFloat(avg) / state.clientTimeout) * 100);
+            const maxPct = Math.min(100, (parseFloat(max) / state.clientTimeout) * 100);
+
+            elements.barAvgLatency.style.width = `${avgPct}%`;
+            elements.barMaxLatency.style.width = `${maxPct}%`;
+
+            if (parseFloat(avg) > state.clientTimeout * 0.8) {
+                elements.barAvgLatency.className = "bg-rose-500 h-1.5 transition-all duration-300";
+            } else if (parseFloat(avg) > state.clientTimeout * 0.5) {
+                elements.barAvgLatency.className = "bg-amber-500 h-1.5 transition-all duration-300";
+            } else {
+                elements.barAvgLatency.className = "bg-indigo-500 h-1.5 transition-all duration-300";
+            }
+        }
+
+        // Format RM currency
+        function formatRM(amount) {
+            return `RM ${amount.toLocaleString('en-MY', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+        }
+
+        // Clean up visual container simulation elements
+        function resetStats() {
+            if (state.isRunning) return;
+            state.results = [];
+            state.processedCount = 0;
+            state.activeRequests = 0;
+            state.queue = [];
+            state.isPaused = false;
+            
+            elements.metricProcessed.innerText = "0";
+            elements.metricSuccess.innerText = "0";
+            elements.metricDropped.innerText = "0";
+            elements.metricRevenue.innerText = "RM 0.00";
+            elements.metricAvgLatency.innerText = "0 ms";
+            elements.metricMaxLatency.innerText = "0 ms";
+            elements.barAvgLatency.style.width = "0%";
+            elements.barMaxLatency.style.width = "0%";
+            elements.simProgressPct.innerText = "0%";
+            elements.simProgressBar.style.width = "0%";
+            
+            elements.badgeActiveConns.innerText = `0 of ${state.concurrency} shoppers`;
+            elements.badgeOrderStatus.innerText = "Ready";
+            elements.badgeOrderStatus.className = "text-xs text-slate-500 uppercase font-bold tracking-wider mt-1";
+            
+            elements.queueVisualContainer.innerHTML = '<span class="text-slate-600 text-xs w-full text-center font-medium">Queue is Empty</span>';
+            
+            // Clean dynamic active worker states
+            for (let i = 0; i < 3; i++) {
+                const card = document.getElementById(`worker-card-${i}`);
+                if (card) {
+                    card.querySelector('.status').innerText = 'Idle';
+                    card.querySelector('.status').className = 'text-slate-500 font-mono status';
+                }
+            }
+
+            elements.nodeClient.className = "w-12 h-12 sm:w-16 sm:h-16 rounded-full bg-slate-800 border-2 border-slate-600 flex items-center justify-center shadow-lg transition-all duration-300";
+            elements.nodeOrder.className = "w-14 h-14 sm:w-18 sm:h-18 rounded-full bg-slate-800 border-2 border-slate-600 flex items-center justify-center shadow-lg transition-all duration-300";
+
+            // Hide summary modal
+            elements.summaryModalContainer.classList.add('hidden');
+            elements.summaryModalContainer.innerHTML = '';
+
+            // Hide pause button
+            elements.btnPause.classList.add('hidden');
+            elements.btnPause.classList.remove('flex');
+
+            logTelemetry("Board cleared. Ready for next demo.");
+        }
+
+        elements.btnReset.addEventListener('click', resetStats);
+
+        // WS-7e: Pause/Resume toggle
+        elements.btnPause.addEventListener('click', togglePause);
+
+        function togglePause() {
+            if (!state.isRunning) return;
+            state.isPaused = !state.isPaused;
+            if (state.isPaused) {
+                elements.pauseLabel.innerText = 'Resume';
+                elements.btnPause.className = "mr-2 px-3 py-2 rounded-md font-bold text-xs bg-amber-500/15 border border-amber-500/30 text-amber-400 hover:bg-amber-500/25 transition flex items-center gap-1.5 pause-pulse";
+                logTelemetry("⏸ Demo paused. Press Resume or Spacebar to continue.", "warning");
+            } else {
+                elements.pauseLabel.innerText = 'Pause';
+                elements.btnPause.className = "mr-2 px-3 py-2 rounded-md font-bold text-xs bg-amber-500/15 border border-amber-500/30 text-amber-400 hover:bg-amber-500/25 transition flex items-center gap-1.5";
+                logTelemetry("▶ Demo resumed.");
+            }
+        }
+
+        // WS-7e: Spacebar shortcut
+        document.addEventListener('keydown', (e) => {
+            if (e.code === 'Space' && state.isRunning && !e.target.closest('input, textarea, button')) {
+                e.preventDefault();
+                togglePause();
+            }
+        });
+
+        // Show pause button during simulation
+        function showPauseButton() {
+            elements.btnPause.classList.remove('hidden');
+            elements.btnPause.classList.add('flex');
+            elements.pauseLabel.innerText = 'Pause';
+            elements.btnPause.className = "mr-2 px-3 py-2 rounded-md font-bold text-xs bg-amber-500/15 border border-amber-500/30 text-amber-400 hover:bg-amber-500/25 transition flex items-center gap-1.5";
+        }
+
+        function hidePauseButton() {
+            elements.btnPause.classList.add('hidden');
+            elements.btnPause.classList.remove('flex');
+            state.isPaused = false;
+        }
+
+        // WS-4: Post-simulation summary modal
+        function showSummaryModal(type) {
+            const successes = state.results.filter(r => r.success).length;
+            const failures = state.results.filter(r => !r.success).length;
+            const latencies = state.results.map(r => r.latency);
+            const avg = latencies.length ? (latencies.reduce((a, b) => a + b, 0) / latencies.length).toFixed(0) : "0";
+            const revenueLost = failures * state.avgOrderValue;
+            const revenueSaved = type === 'async' && state.history.p2p ? 
+                (state.history.p2p.failures * state.avgOrderValue) : 0;
+
+            let html = '';
+            if (type === 'p2p') {
+                html = `
+                    <div id="summary-modal" class="bg-slate-900/98 backdrop-blur-sm border-t border-rose-500/30 rounded-t-xl p-5 shadow-2xl">
+                        <div class="flex items-start gap-3">
+                            <div class="text-2xl">🔴</div>
+                            <div class="flex-1">
+                                <h4 class="font-bold text-rose-400 text-sm uppercase mb-2">Old System Result</h4>
+                                <div class="space-y-1.5 text-xs">
+                                    <p class="text-slate-300">Out of <strong class="text-white">${state.totalRequests}</strong> shoppers, <strong class="text-rose-400">${failures} gave up waiting</strong>.</p>
+                                    <p class="text-slate-300">Average wait time: <strong class="text-white">${avg}ms</strong> (shoppers expect < ${state.clientTimeout}ms)</p>
+                                    <p class="text-slate-300">Estimated lost revenue: <strong class="text-rose-400">${formatRM(revenueLost)}</strong></p>
+                                </div>
+                                <p class="text-xs text-amber-400 font-medium mt-3">→ Now click "Step 2" to see the solution</p>
+                            </div>
+                            <button onclick="dismissSummary()" class="text-slate-500 hover:text-slate-300 text-xs font-bold bg-slate-800 hover:bg-slate-700 px-3 py-1.5 rounded-lg transition">Got it ✓</button>
+                        </div>
+                    </div>
+                `;
+            } else {
+                html = `
+                    <div id="summary-modal" class="bg-slate-900/98 backdrop-blur-sm border-t border-emerald-500/30 rounded-t-xl p-5 shadow-2xl">
+                        <div class="flex items-start gap-3">
+                            <div class="text-2xl">🟢</div>
+                            <div class="flex-1">
+                                <h4 class="font-bold text-emerald-400 text-sm uppercase mb-2">Upgraded System Result</h4>
+                                <div class="space-y-1.5 text-xs">
+                                    <p class="text-slate-300">Out of <strong class="text-white">${state.totalRequests}</strong> shoppers, <strong class="text-emerald-400">${failures === 0 ? 'zero gave up' : failures + ' gave up'}</strong>.</p>
+                                    <p class="text-slate-300">Every order confirmed instantly (avg <strong class="text-white">${avg}ms</strong>).</p>
+                                    ${revenueSaved > 0 ? `<p class="text-slate-300">Revenue saved vs old system: <strong class="text-emerald-400">${formatRM(revenueSaved)}</strong></p>` : `<p class="text-slate-300">Estimated revenue lost: <strong class="text-emerald-400">${formatRM(revenueLost)}</strong></p>`}
+                                </div>
+                                <p class="text-xs text-indigo-400 font-medium mt-3">→ Compare both results in the "Head-to-Head Comparison" table below</p>
+                            </div>
+                            <button onclick="dismissSummary()" class="text-slate-500 hover:text-slate-300 text-xs font-bold bg-slate-800 hover:bg-slate-700 px-3 py-1.5 rounded-lg transition">Got it ✓</button>
+                        </div>
+                    </div>
+                `;
+            }
+
+            elements.summaryModalContainer.innerHTML = html;
+            elements.summaryModalContainer.classList.remove('hidden');
+        }
+
+        function dismissSummary() {
+            const modal = document.getElementById('summary-modal');
+            if (modal) {
+                modal.classList.add('dismissing');
+                setTimeout(() => {
+                    elements.summaryModalContainer.classList.add('hidden');
+                    elements.summaryModalContainer.innerHTML = '';
+                }, 400);
+            }
+        }
+
+        // WS-7a: Breadcrumb stepper update
+        function updateBreadcrumb(step, completed = false) {
+            const dots = [elements.stepDot1, elements.stepDot2, elements.stepDot3];
+            const labels = [elements.stepLabel1, elements.stepLabel2, elements.stepLabel3];
+            const conns = [elements.stepConn1, elements.stepConn2];
+
+            if (completed) {
+                state.completedSteps.add(step);
+            }
+
+            // Reset all
+            dots.forEach((d, i) => {
+                d.className = 'step-dot';
+                labels[i].className = 'text-xs font-medium text-slate-500';
+            });
+            conns.forEach(c => c.className = 'step-connector');
+
+            // Mark completed steps
+            state.completedSteps.forEach(s => {
+                dots[s - 1].className = 'step-dot completed';
+                dots[s - 1].innerHTML = '✓';
+                labels[s - 1].className = 'text-xs font-medium text-emerald-400';
+                if (s > 1) conns[s - 2].className = 'step-connector completed';
+            });
+
+            // Mark active step (highest non-completed)
+            state.currentStep = step;
+            if (!state.completedSteps.has(step)) {
+                dots[step - 1].className = 'step-dot active';
+                dots[step - 1].innerHTML = `①②③`[step - 1];
+                labels[step - 1].className = 'text-xs font-medium text-indigo-400';
+                if (step > 1) conns[step - 2].className = 'step-connector completed';
+            }
+        }
+
+
+        /* --- CORE SIMULATION 1: POINT-TO-POINT SYNCHRONOUS --- */
+        async function runP2PSimulation() {
+            if (state.isRunning) return;
+            switchMode('p2p');
+            resetStats();
+            state.isRunning = true;
+            disableControls(true);
+            showPauseButton();
+            updateBreadcrumb(2);
+            logTelemetry("🟡 Now showing: What happens under the OLD checkout system…", "warning");
+
+            const total = state.totalRequests;
+            let activeConns = 0;
+
+            const handleRequest = async (id) => {
+                activeConns++;
+                state.activeRequests = activeConns;
+                elements.badgeActiveConns.innerText = `${activeConns} of ${state.concurrency} shoppers`;
+                
+                elements.nodeClient.className = "w-12 h-12 sm:w-16 sm:h-16 rounded-full bg-amber-500/10 border-2 border-amber-500 flex items-center justify-center pulse-accent-amber transition-all duration-300";
+                elements.nodeOrder.className = "w-14 h-14 sm:w-18 sm:h-18 rounded-full bg-indigo-500/10 border-2 border-indigo-500 flex items-center justify-center shadow-[0_0_15px_rgba(99,102,241,0.3)] transition-all duration-300";
+
+                const startTime = Date.now();
+
+                const congestionMultiplier = 1.0 + (activeConns * 0.12);
+                
+                elements.badgeOrderStatus.innerText = `🚨 Overloaded (${activeConns} shoppers stuck)`;
+                elements.badgeOrderStatus.className = "text-xs text-amber-400 font-bold font-mono mt-1";
+
+                createParticle(elements.nodeClient, elements.nodeOrder, 'amber', '🛒');
+                await sleep(25);
+
+                const payNode = document.getElementById('node-pay');
+                createParticle(elements.nodeOrder, payNode, 'amber', '💳');
+                elements.badgePayStatus.innerText = `⏳ Busy: ${Math.round(state.latencyPay * congestionMultiplier)}ms`;
+                elements.badgePayStatus.className = "text-xs text-amber-500 font-mono font-bold animate-pulse";
+                const step1Duration = state.latencyPay * congestionMultiplier * (0.8 + Math.random() * 0.4);
+                await sleep(step1Duration);
+
+                const invNode = document.getElementById('node-inv');
+                createParticle(payNode, invNode, 'amber', '📦');
+                elements.badgeInvStatus.innerText = `⏳ Busy: ${Math.round(state.latencyInv * congestionMultiplier)}ms`;
+                elements.badgeInvStatus.className = "text-xs text-pink-500 font-mono font-bold animate-pulse";
+                const step2Duration = state.latencyInv * congestionMultiplier * (0.8 + Math.random() * 0.4);
+                await sleep(step2Duration);
+
+                createParticle(invNode, elements.nodeDb, 'amber', '💾');
+                elements.badgeDbStatus.innerText = `${Math.round(state.latencyDb * congestionMultiplier)}ms`;
+                elements.badgeDbStatus.className = "text-xs text-emerald-500 font-mono font-bold animate-pulse";
+                const step3Duration = state.latencyDb * congestionMultiplier;
+                await sleep(step3Duration);
+
+                const endTime = Date.now();
+                const duration = endTime - startTime;
+
+                const statusColor = duration > state.clientTimeout ? 'rose' : 'emerald';
+                const statusEmoji = duration > state.clientTimeout ? '😡' : '🛍️';
+                createParticle(elements.nodeDb, elements.nodeClient, statusColor, statusEmoji);
+
+                activeConns--;
+                state.activeRequests = activeConns;
+                elements.badgeActiveConns.innerText = `${activeConns} of ${state.concurrency} shoppers`;
+
+                let isSuccess = true;
+                let errMsg = null;
+
+                if (duration > state.clientTimeout) {
+                    isSuccess = false;
+                    errMsg = `Shopper gave up after ${duration}ms.`;
+                    logTelemetry(`❌ Shopper #${id} gave up waiting after ${duration}ms — sale lost!`, "error");
+                } else {
+                    logTelemetry(`✅ Shopper #${id} completed checkout in ${duration}ms.`, "success");
+                }
+
+                state.results.push({
+                    id,
+                    success: isSuccess,
+                    latency: duration,
+                    error: errMsg
+                });
+
+                updateMetrics();
+            };
+
+            const promises = [];
+            for (let i = 0; i < total; i++) {
+                while (activeConns >= state.concurrency) {
+                    await sleep(20);
+                }
+                promises.push(handleRequest(i));
+            }
+
+            await Promise.all(promises);
+
+            state.isRunning = false;
+            disableControls(false);
+            hidePauseButton();
+            logTelemetry("🔴 Demo complete: See how many shoppers gave up below.", "error");
+            elements.nodeClient.className = "w-12 h-12 sm:w-16 sm:h-16 rounded-full bg-slate-800 border-2 border-slate-600 flex items-center justify-center shadow-lg transition-all duration-300";
+            elements.nodeOrder.className = "w-14 h-14 sm:w-18 sm:h-18 rounded-full bg-slate-800 border-2 border-slate-600 flex items-center justify-center shadow-lg transition-all duration-300";
+            elements.badgeOrderStatus.innerText = "Ready";
+            elements.badgeOrderStatus.className = "text-xs text-slate-500 uppercase font-bold tracking-wider mt-1";
+            elements.badgePayStatus.innerText = `~${state.latencyPay}ms per order`;
+            elements.badgePayStatus.className = "text-xs text-slate-500 font-mono";
+            elements.badgeInvStatus.innerText = `~${state.latencyInv}ms per order`;
+            elements.badgeInvStatus.className = "text-xs text-slate-500 font-mono";
+            elements.badgeDbStatus.innerText = "~50ms write";
+            elements.badgeDbStatus.className = "text-xs text-slate-500 font-mono";
+
+            storeHistory('p2p');
+            updateBreadcrumb(2, true);
+            updateBreadcrumb(3);
+
+            // WS-4: Show summary modal
+            setTimeout(() => showSummaryModal('p2p'), 500);
+        }
+
+
+        /* --- CORE SIMULATION 2: ASYNCHRONOUS EVENT-DRIVEN --- */
+        async function runAsyncSimulation() {
+            if (state.isRunning) return;
+            switchMode('async');
+            resetStats();
+            state.isRunning = true;
+            disableControls(true);
+            showPauseButton();
+            updateBreadcrumb(3);
+            logTelemetry("🟢 Now showing: What happens with the UPGRADED smart queue…", "success");
+
+            const total = state.totalRequests;
+            let activeConns = 0;
+            state.queue = [];
+
+            const bgResults = [];
+            const workersCount = 3;
+            const staffNames = ['A', 'B', 'C'];
+
+            const runWorker = async (workerId) => {
+                const card = document.getElementById(`worker-card-${workerId}`);
+                
+                while (state.isRunning || state.queue.length > 0) {
+                    if (state.queue.length === 0) {
+                        if (card) {
+                            card.querySelector('.status').innerText = 'Idle';
+                            card.querySelector('.status').className = 'text-slate-500 font-mono status';
+                        }
+                        await sleep(50);
+                        if (state.results.length === total) break;
+                        continue;
+                    }
+
+                    const task = state.queue.shift();
+                    updateQueueVisual();
+
+                    if (card) {
+                        card.querySelector('.status').innerText = `Order #${task.id}`;
+                        card.querySelector('.status').className = 'text-emerald-400 font-mono font-bold animate-pulse status';
+                    }
+
+                    logTelemetry(`📋 Staff ${staffNames[workerId]} picked up Order #${task.id} from the queue board.`);
+
+                    document.getElementById('async-pay-badge').className = "text-xs text-amber-400 font-bold animate-pulse font-mono";
+                    await sleep(state.latencyPay * (0.9 + Math.random() * 0.2));
+                    document.getElementById('async-pay-badge').className = "text-xs text-slate-500 font-mono";
+
+                    document.getElementById('async-inv-badge').className = "text-xs text-pink-400 font-bold animate-pulse font-mono";
+                    await sleep(state.latencyInv * (0.9 + Math.random() * 0.2));
+                    document.getElementById('async-inv-badge').className = "text-xs text-slate-500 font-mono";
+
+                    createParticle(elements.asyncSubLayout, elements.nodeDb, 'emerald', '💾');
+                    await sleep(state.latencyDb);
+
+                    const completedAt = Date.now();
+                    const totalExecutionTime = completedAt - task.createdAt;
+
+                    bgResults.push({
+                        id: task.id,
+                        workerId,
+                        totalTime: totalExecutionTime
+                    });
+
+                    logTelemetry(`✅ Staff ${staffNames[workerId]} completed Order #${task.id} (${totalExecutionTime}ms total processing).`, "success");
+                }
+
+                if (card) {
+                    card.querySelector('.status').innerText = 'Idle';
+                    card.querySelector('.status').className = 'text-slate-500 font-mono status';
+                }
+            };
+
+            const workerPromises = [];
+            for (let w = 0; w < workersCount; w++) {
+                workerPromises.push(runWorker(w));
+            }
+
+            for (let i = 0; i < total; i++) {
+                while (activeConns >= state.concurrency) {
+                    await sleep(10);
+                }
+
+                activeConns++;
+                state.activeRequests = activeConns;
+                elements.badgeActiveConns.innerText = `${activeConns} of ${state.concurrency} shoppers`;
+                
+                elements.nodeClient.className = "w-12 h-12 sm:w-16 sm:h-16 rounded-full bg-emerald-500/10 border-2 border-emerald-500 flex items-center justify-center pulse-accent-emerald transition-all duration-300";
+                elements.nodeOrder.className = "w-14 h-14 sm:w-18 sm:h-18 rounded-full bg-indigo-500/10 border-2 border-indigo-500 flex items-center justify-center shadow-[0_0_15px_rgba(99,102,241,0.3)] transition-all duration-300";
+
+                const startIngest = Date.now();
+
+                createParticle(elements.nodeClient, elements.nodeOrder, 'emerald', '🛒');
+                await sleep(10);
+
+                state.queue.push({
+                    id: i,
+                    createdAt: startIngest
+                });
+                updateQueueVisual();
+                createParticle(elements.nodeOrder, elements.asyncSubLayout, 'emerald', '📋');
+
+                const responseDuration = Date.now() - startIngest;
+                createParticle(elements.nodeOrder, elements.nodeClient, 'emerald', '📟');
+
+                state.results.push({
+                    id: i,
+                    success: true,
+                    latency: responseDuration
+                });
+
+                logTelemetry(`✅ Shopper #${i} got instant confirmation in ${responseDuration}ms — order queued!`, "success");
+                
+                activeConns--;
+                state.activeRequests = activeConns;
+                elements.badgeActiveConns.innerText = `${activeConns} of ${state.concurrency} shoppers`;
+                
+                updateMetrics();
+            }
+
+            await Promise.all(workerPromises);
+
+            state.isRunning = false;
+            disableControls(false);
+            hidePauseButton();
+            logTelemetry("🟢 Demo complete: Every single shopper was served! 100% success.", "success");
+            elements.nodeClient.className = "w-12 h-12 sm:w-16 sm:h-16 rounded-full bg-slate-800 border-2 border-slate-600 flex items-center justify-center shadow-lg transition-all duration-300";
+            elements.nodeOrder.className = "w-14 h-14 sm:w-18 sm:h-18 rounded-full bg-slate-800 border-2 border-slate-600 flex items-center justify-center shadow-lg transition-all duration-300";
+
+            storeHistory('async', bgResults);
+            updateBreadcrumb(3, true);
+
+            // WS-4: Show summary modal
+            setTimeout(() => showSummaryModal('async'), 500);
+        }
+
+        // Live Queue Board UI Render
+        function updateQueueVisual() {
+            const limit = 8;
+            if (state.queue.length === 0) {
+                elements.queueVisualContainer.innerHTML = '<span class="text-slate-600 text-xs w-full text-center font-medium">Queue is Empty</span>';
+                return;
+            }
+
+            let html = '';
+            const count = Math.min(state.queue.length, limit);
+            for (let i = 0; i < count; i++) {
+                html += `<div class="h-8 w-16 bg-emerald-500/10 border border-emerald-500/30 text-xs text-emerald-400 font-bold font-mono rounded-md flex items-center justify-center shrink-0 animate-pulse">📋 #${state.queue[i].id}</div>`;
+            }
+            if (state.queue.length > limit) {
+                html += `<div class="h-8 w-16 bg-indigo-950 border border-indigo-800 text-xs text-indigo-400 font-bold font-mono rounded-md flex items-center justify-center shrink-0">+${state.queue.length - limit}</div>`;
+            }
+            elements.queueVisualContainer.innerHTML = html;
+        }
+
+        // Save execution outputs into comparison charts
+        function storeHistory(type, bgResults = null) {
+            const successes = state.results.filter(r => r.success).length;
+            const successRate = ((successes / state.totalRequests) * 100).toFixed(1);
+            
+            const latencies = state.results.map(r => r.latency);
+            const avg = latencies.length ? (latencies.reduce((a, b) => a + b, 0) / latencies.length).toFixed(1) : "0";
+            const max = latencies.length ? Math.max(...latencies).toFixed(1) : "0";
+            const failures = state.results.filter(r => !r.success).length;
+            const revenueLost = failures * state.avgOrderValue;
+
+            if (type === 'p2p') {
+                state.history.p2p = { successRate, avg, max, failures, revenueLost };
+                elements.histP2pSuccess.innerText = `${successes} / ${state.totalRequests}`;
+                elements.histP2pAvgLat.innerText = `${avg} ms`;
+                elements.histP2pMaxLat.innerText = `${max} ms`;
+                elements.histP2pTimeouts.innerText = `${failures} abandoned`;
+                elements.histP2pRevenue.innerText = formatRM(revenueLost);
+                
+                elements.histP2pSuccess.className = "text-center font-mono font-bold text-rose-400";
+                elements.histP2pAvgLat.className = "text-center font-mono font-bold text-rose-400";
+                elements.histP2pMaxLat.className = "text-center font-mono font-bold text-rose-500";
+                elements.histP2pTimeouts.className = "text-center font-mono font-bold text-rose-400";
+                elements.histP2pRevenue.className = "text-center font-mono font-bold text-rose-500";
+            } else {
+                let avgBg = 0;
+                if (bgResults) {
+                    const totalBgTime = bgResults.reduce((sum, task) => sum + task.totalTime, 0);
+                    avgBg = (totalBgTime / bgResults.length).toFixed(0);
+                }
+
+                state.history.async = { successRate, avg, max, failures, revenueLost };
+                elements.histAsyncSuccess.innerText = `${successes} / ${state.totalRequests}`;
+                elements.histAsyncAvgLat.innerText = `${avg} ms (instant!)`;
+                elements.histAsyncMaxLat.innerText = `${max} ms (instant!)`;
+                elements.histAsyncTimeouts.innerText = `${failures} abandoned`;
+                elements.histAsyncRevenue.innerText = formatRM(revenueLost);
+                
+                elements.histAsyncSuccess.className = "text-center font-mono font-bold text-emerald-400 bg-emerald-500/5 rounded";
+                elements.histAsyncAvgLat.className = "text-center font-mono font-bold text-emerald-400 bg-emerald-500/5 rounded";
+                elements.histAsyncMaxLat.className = "text-center font-mono font-bold text-emerald-500 bg-emerald-500/5 rounded";
+                elements.histAsyncTimeouts.className = "text-center font-mono font-bold text-emerald-400 bg-emerald-500/5 rounded";
+                elements.histAsyncRevenue.className = "text-center font-mono font-bold text-emerald-400 bg-emerald-500/5 rounded";
+            }
+        }
+
+        // Disable UI inputs when simulation is running
+        function disableControls(disabled) {
+            elements.paramTotalReqs.disabled = disabled;
+            elements.paramConcurrency.disabled = disabled;
+            elements.paramTimeout.disabled = disabled;
+            elements.paramSpeed.disabled = disabled;
+            elements.paramAvgOrder.disabled = disabled;
+            elements.paramLatencyPay.disabled = disabled;
+            elements.paramLatencyInv.disabled = disabled;
+            elements.btnRunP2P.disabled = disabled;
+            elements.btnRunAsync.disabled = disabled;
+            elements.btnReset.disabled = disabled;
+            elements.tourStep1.disabled = disabled;
+            elements.tourStep2.disabled = disabled;
+
+            const cursorClass = disabled ? "cursor-not-allowed opacity-40" : "";
+            elements.btnRunP2P.className = `py-2.5 px-3 bg-amber-600 hover:bg-amber-500 text-white rounded-lg font-bold text-xs flex items-center justify-center gap-1.5 transition ${cursorClass}`;
+            elements.btnRunAsync.className = `py-2.5 px-3 bg-emerald-600 hover:bg-emerald-500 text-white rounded-lg font-bold text-xs flex items-center justify-center gap-1.5 transition ${cursorClass}`;
+            elements.btnReset.className = `w-full mt-2 py-1.5 px-3 bg-slate-950 hover:bg-slate-800 text-slate-400 rounded-lg font-semibold text-xs flex items-center justify-center gap-1.5 border border-slate-800 transition ${cursorClass}`;
+        }
+
+        // WS-6a: Preset scenarios
+        function applyPreset(name, total, concurrency, timeout, description) {
+            if (state.isRunning) return;
+            elements.paramTotalReqs.value = total;
+            elements.paramConcurrency.value = concurrency;
+            elements.paramTimeout.value = timeout;
+            syncControls();
+            
+            // Show toast
+            elements.presetToast.innerText = `📌 ${description}`;
+            elements.presetToast.classList.remove('hidden');
+            elements.presetToast.style.animation = 'toastIn 0.3s ease-out forwards';
+            setTimeout(() => {
+                elements.presetToast.style.animation = 'toastOut 0.3s ease-in forwards';
+                setTimeout(() => elements.presetToast.classList.add('hidden'), 300);
+            }, 2500);
+        }
+
+        elements.presetNormal.addEventListener('click', () => applyPreset('Normal', 50, 10, 800, 'Normal Day — A quiet weekday afternoon'));
+        elements.presetFlash.addEventListener('click', () => applyPreset('Flash', 100, 25, 500, 'Flash Sale — 12.12 promotion event'));
+        elements.presetPeak.addEventListener('click', () => applyPreset('Peak', 200, 40, 400, 'Holiday Peak — Chinese New Year midnight rush'));
+
+        // WS-6b: Backend toggle
+        elements.toggleBackend.addEventListener('click', () => {
+            const isHidden = elements.backendSliders.classList.contains('hidden');
+            elements.backendSliders.classList.toggle('hidden');
+            elements.toggleBackendLabel.innerText = isHidden ? '⚙️ Fine-tune backend speeds ▾' : '⚙️ Fine-tune backend speeds ▸';
+        });
+
+        // WS-6c: Export to clipboard
+        elements.btnExport.addEventListener('click', async () => {
+            const p2p = state.history.p2p;
+            const async_ = state.history.async;
+
+            let text = `ShopEZ Malaysia — Simulation Results\n${'='.repeat(50)}\n`;
+
+            if (p2p) {
+                const p2pSuccesses = state.totalRequests - p2p.failures;
+                text += `Old System:  ${p2pSuccesses}/${state.totalRequests} completed | Avg wait: ${p2p.avg}ms | Lost: ${formatRM(p2p.revenueLost)}\n`;
+            } else {
+                text += `Old System:  Not yet tested\n`;
+            }
+
+            if (async_) {
+                const asyncSuccesses = state.totalRequests - async_.failures;
+                text += `New System: ${asyncSuccesses}/${state.totalRequests} completed | Avg wait: ${async_.avg}ms | Lost: ${formatRM(async_.revenueLost)}\n`;
+            } else {
+                text += `New System: Not yet tested\n`;
+            }
+
+            text += `${'='.repeat(50)}\nRecommendation: Upgrade to the smart queue system.\n`;
+
+            try {
+                await navigator.clipboard.writeText(text);
+                elements.exportToast.innerText = '✓ Copied!';
+                elements.exportToast.classList.remove('hidden');
+                elements.exportToast.style.animation = 'toastIn 0.3s ease-out forwards';
+                setTimeout(() => {
+                    elements.exportToast.style.animation = 'toastOut 0.3s ease-in forwards';
+                    setTimeout(() => elements.exportToast.classList.add('hidden'), 300);
+                }, 2000);
+            } catch (e) {
+                // Fallback: select text in a temporary textarea
+                const ta = document.createElement('textarea');
+                ta.value = text;
+                document.body.appendChild(ta);
+                ta.select();
+                document.execCommand('copy');
+                ta.remove();
+                elements.exportToast.innerText = '✓ Copied!';
+                elements.exportToast.classList.remove('hidden');
+                setTimeout(() => elements.exportToast.classList.add('hidden'), 2000);
+            }
+        });
+
+        // WS-1: Onboarding overlay dismiss
+        elements.onboardingDismiss.addEventListener('click', () => {
+            elements.onboardingOverlay.classList.add('dismissing');
+            setTimeout(() => {
+                elements.onboardingOverlay.remove();
+                // Post-dismiss: pulse Step 1 button to guide attention
+                elements.tourStep1.classList.add('attention-pulse');
+                setTimeout(() => elements.tourStep1.classList.remove('attention-pulse'), 7500);
+            }, 400);
+        });
+
+        // Automated Presentation Script 1
+        elements.tourStep1.addEventListener('click', async () => {
+            if (state.isRunning) return;
+            elements.paramTotalReqs.value = 100;
+            elements.paramConcurrency.value = 25;
+            elements.paramTimeout.value = 500;
+            syncControls();
+            updateBreadcrumb(1, true);
+            
+            logTelemetry("🎯 Setting up: Peak holiday rush scenario with the old system…", "warning");
+            await sleep(1500);
+            runP2PSimulation();
+        });
+
+        // Automated Presentation Script 2
+        elements.tourStep2.addEventListener('click', async () => {
+            if (state.isRunning) return;
+            elements.paramTotalReqs.value = 100;
+            elements.paramConcurrency.value = 25;
+            elements.paramTimeout.value = 500;
+            syncControls();
+
+            logTelemetry("🎯 Setting up: Same rush, but now with the upgraded smart queue…", "success");
+            await sleep(1500);
+            runAsyncSimulation();
+        });
+
+        // Event hooks
+        elements.btnRunP2P.addEventListener('click', runP2PSimulation);
+        elements.btnRunAsync.addEventListener('click', runAsyncSimulation);
+
+        // Initial setup
+        window.addEventListener('DOMContentLoaded', () => {
+            syncControls();
+            lucide.createIcons();
+            switchMode('p2p');
+            updateBreadcrumb(1);
+            
+            // Interactive Zoom & Canvas Drag/Swipe Panning setup
+            let zoomLevel = 100;
+            let panX = 0;
+            let panY = 0;
+            let isDragging = false;
+            let dragStartX = 0;
+            let dragStartY = 0;
+
+            const viewport = document.getElementById('visual-viewport');
+            const visualizerContainer = document.getElementById('visualizer-container');
+            const zoomIn = document.getElementById('btn-zoom-in');
+            const zoomOut = document.getElementById('btn-zoom-out');
+            const zoomReset = document.getElementById('btn-zoom-reset');
+            const zoomText = document.getElementById('txt-zoom-level');
+
+            function applyZoomAndPan() {
+                if (viewport) {
+                    viewport.style.transform = `translate(${panX}px, ${panY}px) scale(${zoomLevel / 100})`;
+                }
+                if (zoomText) {
+                    zoomText.innerText = `${zoomLevel}%`;
+                }
+            }
+
+            if (zoomIn) {
+                zoomIn.addEventListener('click', () => {
+                    zoomLevel = Math.min(150, zoomLevel + 10);
+                    applyZoomAndPan();
+                });
+            }
+
+            if (zoomOut) {
+                zoomOut.addEventListener('click', () => {
+                    zoomLevel = Math.max(50, zoomLevel - 10);
+                    applyZoomAndPan();
+                });
+            }
+
+            if (zoomReset) {
+                zoomReset.addEventListener('click', () => {
+                    zoomLevel = 100;
+                    panX = 0;
+                    panY = 0;
+                    applyZoomAndPan();
+                });
+            }
+
+            if (visualizerContainer) {
+                visualizerContainer.style.cursor = 'grab';
+
+                // Mouse Pan dragging events
+                visualizerContainer.addEventListener('mousedown', (e) => {
+                    if (e.target.closest('button') || e.target.closest('input') || e.target.closest('#summary-modal-container') || e.target.closest('#summary-modal')) return;
+                    isDragging = true;
+                    visualizerContainer.style.cursor = 'grabbing';
+                    dragStartX = e.clientX - panX;
+                    dragStartY = e.clientY - panY;
+                });
+
+                window.addEventListener('mousemove', (e) => {
+                    if (!isDragging) return;
+                    panX = e.clientX - dragStartX;
+                    panY = e.clientY - dragStartY;
+                    applyZoomAndPan();
+                });
+
+                window.addEventListener('mouseup', () => {
+                    if (isDragging) {
+                        isDragging = false;
+                        visualizerContainer.style.cursor = 'grab';
+                    }
+                });
+
+                // Mobile touch Swipe dragging events
+                visualizerContainer.addEventListener('touchstart', (e) => {
+                    if (e.target.closest('button') || e.target.closest('input') || e.target.closest('#summary-modal-container') || e.target.closest('#summary-modal')) return;
+                    if (e.touches.length === 1) {
+                        isDragging = true;
+                        dragStartX = e.touches[0].clientX - panX;
+                        dragStartY = e.touches[0].clientY - panY;
+                    }
+                }, { passive: true });
+
+                visualizerContainer.addEventListener('touchmove', (e) => {
+                    if (!isDragging) return;
+                    if (e.touches.length === 1) {
+                        panX = e.touches[0].clientX - dragStartX;
+                        panY = e.touches[0].clientY - dragStartY;
+                        applyZoomAndPan();
+                    }
+                }, { passive: true });
+
+                visualizerContainer.addEventListener('touchend', () => {
+                    isDragging = false;
+                });
+            }
+        });
+    </script>
+</body>
+</html>
