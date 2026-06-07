@@ -211,6 +211,70 @@
         .pause-pulse {
             animation: pulse-amber 1.5s infinite;
         }
+
+        /* ── Centered Settings Modal / Popup ────────────────────── */
+        #scenario-settings-drawer {
+            position: fixed;
+            left: 50%;
+            top: 50%;
+            transform: translate(-50%, -50%) scale(0.92);
+            width: 92%;
+            max-width: 440px;
+            max-height: 90vh;
+            z-index: 100;
+            opacity: 0;
+            pointer-events: none;
+            transition: transform 0.28s cubic-bezier(0.34, 1.56, 0.64, 1), opacity 0.25s ease;
+            display: flex;
+            flex-direction: column;
+            justify-content: space-between;
+        }
+        #scenario-settings-drawer.open {
+            transform: translate(-50%, -50%) scale(1);
+            opacity: 1;
+            pointer-events: auto;
+        }
+        #bottom-sheet-backdrop {
+            position: fixed;
+            inset: 0;
+            background: rgba(2, 6, 23, 0.65);
+            backdrop-filter: blur(6px);
+            -webkit-backdrop-filter: blur(6px);
+            z-index: 90;
+            opacity: 0;
+            pointer-events: none;
+            transition: opacity 0.25s ease;
+        }
+        #bottom-sheet-backdrop.open {
+            opacity: 1;
+            pointer-events: auto;
+        }
+
+        /* ── Commentary footer bar ───────────────────────────────── */
+        #commentary-bar {
+            transition: max-height 0.3s ease, opacity 0.25s ease;
+            max-height: 0;
+            overflow: hidden;
+            opacity: 0;
+        }
+        #commentary-bar.expanded {
+            max-height: 130px;
+            opacity: 1;
+        }
+
+        /* ── Compact toolbar: hide text labels on xs screens ─────── */
+        @media (max-width: 479px) {
+            .toolbar-label { display: none; }
+            .toolbar-icon-btn { padding: 0.375rem; }
+        }
+
+        /* ── Visualizer card min-height ──────────────────────────── */
+        #visualizer-card {
+            min-height: 400px;
+        }
+        @media (min-width: 640px)  { #visualizer-card { min-height: 460px; } }
+        @media (min-width: 1024px) { #visualizer-card { min-height: 520px; } }
+        @media (min-width: 1280px) { #visualizer-card { min-height: 580px; } }
     </style>
 </head>
 <body class="bg-slate-950 text-slate-100 min-h-screen flex flex-col antialiased">
@@ -387,168 +451,228 @@
                 </div>
             </div>
 
-            <!-- Scenario Settings Panel (formerly "Advanced Sandbox Customizer") -->
-            <div class="bg-slate-900 border border-slate-800 rounded-xl p-5 shadow-xl">
-                <div class="flex items-center gap-2 mb-4 pb-3 border-b border-slate-800">
-                    <i data-lucide="sliders" class="w-5 h-5 text-indigo-400"></i>
-                    <h2 class="font-bold text-sm tracking-wide text-white uppercase">Scenario Settings</h2>
-                </div>
-
-                <!-- WS-6a: Preset Scenario Buttons -->
-                <div class="mb-4">
-                    <span class="text-xs font-medium text-slate-500 block mb-2">Quick Scenarios:</span>
-                    <div class="grid grid-cols-3 gap-2">
-                        <button id="preset-normal" title="A quiet weekday afternoon with low traffic" class="py-2 px-2 bg-slate-950 hover:bg-slate-800 border border-slate-700 hover:border-emerald-500/50 rounded-lg text-xs font-medium text-slate-300 hover:text-emerald-400 transition text-center">
-                            🟢 Normal Day
-                        </button>
-                        <button id="preset-flash" title="A 12.12 promotion event with moderate traffic surge" class="py-2 px-2 bg-slate-950 hover:bg-slate-800 border border-slate-700 hover:border-amber-500/50 rounded-lg text-xs font-medium text-slate-300 hover:text-amber-400 transition text-center">
-                            🟡 Flash Sale
-                        </button>
-                        <button id="preset-peak" title="Chinese New Year midnight rush with extreme traffic" class="py-2 px-2 bg-slate-950 hover:bg-slate-800 border border-slate-700 hover:border-rose-500/50 rounded-lg text-xs font-medium text-slate-300 hover:text-rose-400 transition text-center">
-                            🔴 Holiday Peak
-                        </button>
-                    </div>
-                    <div id="preset-toast" class="hidden mt-2 text-xs text-indigo-400 bg-indigo-500/10 border border-indigo-500/20 rounded-lg px-3 py-1.5 text-center font-medium"></div>
-                </div>
-
-                <div class="space-y-4 text-xs">
-                    <div>
-                        <div class="flex justify-between mb-1">
-                            <span class="text-slate-400 font-medium" title="How many shoppers try to buy during the simulation">How many shoppers arrive:</span>
-                            <span id="val-total-reqs" class="font-mono text-emerald-400 font-bold">100</span>
-                        </div>
-                        <input type="range" id="param-total-reqs" min="20" max="250" step="10" value="100" title="More shoppers = more stress on the system. Try 200+ to simulate a major sale event."
-                            class="w-full accent-emerald-500 bg-slate-800 rounded-lg appearance-none h-1.5 cursor-pointer">
-                    </div>
-
-                    <div>
-                        <div class="flex justify-between mb-1">
-                            <span class="text-slate-400 font-medium" title="How many shoppers can check out at the exact same time">Shoppers checking out at once:</span>
-                            <span id="val-concurrency" class="font-mono text-emerald-400 font-bold">15</span>
-                        </div>
-                        <input type="range" id="param-concurrency" min="1" max="40" step="1" value="15" title="Higher numbers mean more people fighting for checkout at the same time. 25+ creates heavy stress."
-                            class="w-full accent-emerald-500 bg-slate-800 rounded-lg appearance-none h-1.5 cursor-pointer">
-                    </div>
-
-                    <div>
-                        <div class="flex justify-between mb-1">
-                            <span class="text-slate-400 font-medium" title="How long a shopper will wait before getting frustrated and leaving">How long a shopper waits before giving up:</span>
-                            <span id="val-timeout" class="font-mono text-rose-400 font-bold">500 ms</span>
-                        </div>
-                        <input type="range" id="param-timeout" min="200" max="1500" step="50" value="500" title="Lower values = less patient shoppers. 500ms or less is realistic for impatient online shoppers."
-                            class="w-full accent-rose-500 bg-slate-800 rounded-lg appearance-none h-1.5 cursor-pointer">
-                    </div>
-
-                    <div class="pt-2 border-t border-slate-800/80">
-                        <div class="flex justify-between mb-1">
-                            <span class="text-slate-400 font-medium" title="Controls how fast the demo animation plays">Demo animation speed:</span>
-                            <span id="val-speed" class="font-mono text-amber-400 font-bold">1.25x</span>
-                        </div>
-                        <input type="range" id="param-speed" min="0.25" max="3" step="0.25" value="1.25" title="Speed up the demo for a quicker view, or slow it down to explain details."
-                            class="w-full accent-amber-500 bg-slate-800 rounded-lg appearance-none h-1.5 cursor-pointer">
-                    </div>
-
-                    <!-- WS-5: Revenue Impact Calculator -->
-                    <div class="pt-2 border-t border-slate-800/80">
-                        <div class="flex justify-between mb-1">
-                            <span class="text-slate-400 font-medium" title="Enter the average value of a single customer order to calculate estimated revenue loss">Average order value (RM):</span>
-                            <span class="font-mono text-emerald-400 font-bold">RM <input type="number" id="param-avg-order" value="150" min="1" max="10000" step="1" title="Enter your average order value in Ringgit to see estimated revenue impact" class="w-16 bg-slate-950 border border-slate-700 rounded px-1.5 py-0.5 text-emerald-400 font-mono font-bold text-xs text-right focus:border-emerald-500 focus:outline-none"></span>
-                        </div>
-                    </div>
-
-                    <!-- WS-6b: Backend speed toggle -->
-                    <div class="pt-2 border-t border-slate-800/80">
-                        <button id="toggle-backend" class="text-xs text-slate-500 hover:text-slate-300 transition flex items-center gap-1.5 mb-2">
-                            <i data-lucide="settings" class="w-3.5 h-3.5"></i>
-                            <span id="toggle-backend-label">⚙️ Fine-tune backend speeds ▸</span>
-                        </button>
-                        <div id="backend-sliders" class="hidden space-y-3">
-                            <div>
-                                <div class="flex justify-between mb-1">
-                                    <span class="text-slate-400 font-medium" title="How fast the payment processing service responds">Payment processing speed:</span>
-                                    <span id="val-latency-pay" class="font-mono text-amber-400 font-bold">150 ms</span>
-                                </div>
-                                <input type="range" id="param-latency-pay" min="50" max="500" step="10" value="150" title="Higher = slower payment processor. Try 400+ to simulate a very slow payment provider."
-                                    class="w-full accent-amber-500 bg-slate-800 rounded-lg appearance-none h-1.5 cursor-pointer">
-                            </div>
-                            <div>
-                                <div class="flex justify-between mb-1">
-                                    <span class="text-slate-400 font-medium" title="How fast the stock & warehouse system responds">Stock & warehouse speed:</span>
-                                    <span id="val-latency-inv" class="font-mono text-pink-400 font-bold">100 ms</span>
-                                </div>
-                                <input type="range" id="param-latency-inv" min="50" max="300" step="10" value="100" title="Higher = slower inventory checks. Try 250+ to simulate aging warehouse systems."
-                                    class="w-full accent-pink-500 bg-slate-800 rounded-lg appearance-none h-1.5 cursor-pointer">
-                            </div>
-                        </div>
-                    </div>
-                </div>
-
-                <!-- WS-7c: Custom Run Triggers with clarification -->
-                <div class="mt-5">
-                    <p class="text-xs text-slate-500 mb-2 italic">Use these to run custom scenarios. For guided demos, use the tour buttons above.</p>
-                    <div class="grid grid-cols-2 gap-2">
-                        <button id="btn-run-p2p" title="Run the old checkout system with your custom settings" class="py-2.5 px-3 bg-amber-600 hover:bg-amber-500 text-white rounded-lg font-bold text-xs flex items-center justify-center gap-1.5 transition">
-                            <i data-lucide="play" class="w-4 h-4"></i> ▶ Demo Old System
-                        </button>
-                        <button id="btn-run-async" title="Run the upgraded smart queue system with your custom settings" class="py-2.5 px-3 bg-emerald-600 hover:bg-emerald-500 text-white rounded-lg font-bold text-xs flex items-center justify-center gap-1.5 transition">
-                            <i data-lucide="play" class="w-4 h-4"></i> ▶ Demo Upgraded
-                        </button>
-                    </div>
-                    <button id="btn-reset" title="Clear all results and reset the simulator to its initial state" class="w-full mt-2 py-1.5 px-3 bg-slate-950 hover:bg-slate-800 text-slate-400 rounded-lg font-semibold text-xs flex items-center justify-center gap-1.5 border border-slate-800 transition">
-                        <i data-lucide="rotate-ccw" class="w-3.5 h-3.5"></i> 🔄 Reset Everything
-                    </button>
-                </div>
-            </div>
-
         </section>
 
         <!-- RIGHT COLUMN (xl:col-span-8) -->
         <section class="xl:col-span-8 flex flex-col gap-6">
             
             <!-- Real-time Interactive Flow Visualizer -->
-            <div class="bg-slate-900 border border-slate-700 rounded-xl p-6 shadow-xl relative overflow-hidden flex flex-col min-h-[400px] lg:min-h-[520px] xl:min-h-[580px]">
-                
-                <!-- Visualizer Header with gradient accent -->
-                <div class="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 pb-4 border-b border-slate-800 z-10 bg-gradient-to-r from-slate-800/30 to-transparent -mx-6 -mt-6 px-6 pt-6 mb-4 rounded-t-xl">
-                    <div class="flex items-center gap-2">
-                        <div class="w-3.5 h-3.5 rounded-full bg-amber-500 animate-pulse" id="visualizer-status-dot"></div>
-                        <h2 class="font-bold text-sm tracking-wide text-white uppercase flex items-center gap-2">
-                            Now Showing: 
-                            <span id="visualizer-title" class="text-amber-400 font-mono">Option A: Old Checkout (Customers Wait)</span>
-                        </h2>
+            <div id="visualizer-card" class="bg-slate-900 border border-slate-700 rounded-xl shadow-xl relative overflow-hidden flex flex-col">
+
+                <!-- ── TOOLBAR (single compact row) ────────────────────── -->
+                <div class="flex items-center gap-1.5 px-3 py-2 border-b border-slate-800 bg-gradient-to-r from-slate-800/40 to-transparent z-10 shrink-0">
+
+                    <!-- Status dot + title (left) -->
+                    <div class="flex items-center gap-2 min-w-0 flex-1">
+                        <div class="w-2.5 h-2.5 rounded-full bg-amber-500 animate-pulse shrink-0" id="visualizer-status-dot"></div>
+                        <div class="min-w-0">
+                            <div class="flex items-baseline gap-1.5 min-w-0">
+                                <span class="text-[10px] font-bold text-slate-500 uppercase tracking-wider whitespace-nowrap">Showing:</span>
+                                <span id="visualizer-title" class="text-xs font-bold text-amber-400 font-mono truncate">Option A: Old Checkout</span>
+                            </div>
+                        </div>
                     </div>
-                    <div class="flex flex-wrap gap-2 items-center">
+
+                    <!-- Right controls group -->
+                    <div class="flex items-center gap-1 shrink-0">
+
                         <!-- WS-7e: Pause/Resume Button -->
-                        <button id="btn-pause" title="Pause or resume the running simulation (Shortcut: Spacebar)" class="hidden mr-2 px-3 py-2 rounded-md font-bold text-xs bg-amber-500/15 border border-amber-500/30 text-amber-400 hover:bg-amber-500/25 transition items-center gap-1.5">
-                            <i data-lucide="pause" class="w-4 h-4" id="pause-icon"></i>
-                            <span id="pause-label">Pause</span>
+                        <button id="btn-pause" title="Pause or resume the running simulation (Shortcut: Spacebar)"
+                            class="hidden px-2 py-1.5 rounded-md font-bold text-xs bg-amber-500/15 border border-amber-500/30 text-amber-400 hover:bg-amber-500/25 transition items-center gap-1 toolbar-icon-btn">
+                            <i data-lucide="pause" class="w-3.5 h-3.5" id="pause-icon"></i>
+                            <span id="pause-label" class="toolbar-label text-[10px]">Pause</span>
                         </button>
-                        
-                        <!-- Interactive Zoom & Panning Controls -->
-                        <div class="flex items-center gap-1 bg-slate-950 p-1 rounded-lg border border-slate-800 text-xs select-none">
-                            <span class="text-slate-500 px-1 font-bold text-[10px] sm:text-xs">ZOOM:</span>
-                            <button id="btn-zoom-out" type="button" title="Zoom Out" class="px-2 py-1 rounded bg-slate-900 hover:bg-slate-800 text-slate-300 font-bold border border-slate-800 text-[10px] sm:text-xs transition">-</button>
-                            <span id="txt-zoom-level" class="font-mono text-slate-300 px-1 font-bold text-[10px] sm:text-xs min-w-[32px] text-center">100%</span>
-                            <button id="btn-zoom-in" type="button" title="Zoom In" class="px-2 py-1 rounded bg-slate-900 hover:bg-slate-800 text-slate-300 font-bold border border-slate-800 text-[10px] sm:text-xs transition">+</button>
-                            <button id="btn-zoom-reset" type="button" title="Reset Zoom & Pan" class="px-1.5 py-1 rounded bg-slate-900 hover:bg-slate-800 text-slate-400 hover:text-slate-200 border border-slate-800 text-[10px] sm:text-xs transition">Reset</button>
+
+                        <!-- Option A / B Tab switcher -->
+                        <div class="flex gap-0.5 bg-slate-950 p-0.5 rounded-lg border border-slate-800 text-[10px]">
+                            <button id="tab-p2p" title="View the old checkout system layout"
+                                class="px-2 py-1.5 rounded-md font-bold text-amber-400 bg-amber-500/10 border border-amber-500/20 transition whitespace-nowrap">A: Old</button>
+                            <button id="tab-async" title="View the upgraded smart queue layout"
+                                class="px-2 py-1.5 rounded-md font-medium text-slate-400 hover:text-slate-200 transition whitespace-nowrap">B: Smart</button>
                         </div>
 
-                        <div class="flex gap-1 bg-slate-950 p-1 rounded-lg border border-slate-800 text-xs">
-                            <button id="tab-p2p" title="View the old checkout system layout" class="px-3 sm:px-4 py-2 rounded-md font-medium text-amber-400 bg-amber-500/10 border border-amber-500/20 transition">Option A: Old System</button>
-                            <button id="tab-async" title="View the upgraded smart queue layout" class="px-3 sm:px-4 py-2 rounded-md font-medium text-slate-400 hover:text-slate-200 transition">Option B: Upgraded</button>
+                        <!-- Zoom controls -->
+                        <div class="flex items-center gap-0.5 bg-slate-950 p-0.5 rounded-lg border border-slate-800 text-[10px] select-none">
+                            <button id="btn-zoom-out" type="button" title="Zoom Out"
+                                class="w-6 h-6 flex items-center justify-center rounded bg-slate-900 hover:bg-slate-800 text-slate-300 font-bold border border-slate-800 transition">−</button>
+                            <span id="txt-zoom-level" class="font-mono text-slate-400 font-bold min-w-[32px] text-center text-[10px]">100%</span>
+                            <button id="btn-zoom-in" type="button" title="Zoom In"
+                                class="w-6 h-6 flex items-center justify-center rounded bg-slate-900 hover:bg-slate-800 text-slate-300 font-bold border border-slate-800 transition">+</button>
+                            <button id="btn-zoom-reset" type="button" title="Reset Zoom & Pan"
+                                class="px-1.5 h-6 flex items-center justify-center rounded bg-slate-900 hover:bg-slate-800 text-slate-400 hover:text-slate-200 border border-slate-800 transition text-[9px] font-bold">⊡</button>
                         </div>
+
+                        <!-- Tuning (Settings) Toggle -->
+                        <button id="btn-toggle-settings" title="Adjust simulation parameters"
+                            class="toolbar-icon-btn px-2 py-1.5 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-300 border border-slate-700 hover:border-indigo-500/60 transition flex items-center gap-1 focus:outline-none">
+                            <i data-lucide="sliders" class="w-3.5 h-3.5 text-indigo-400"></i>
+                            <span class="toolbar-label text-[10px] font-bold">Tune</span>
+                        </button>
+
+                        <!-- Commentary toggle -->
+                        <button id="btn-toggle-commentary" title="Toggle Live Commentary"
+                            class="toolbar-icon-btn px-2 py-1.5 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-300 border border-slate-700 transition flex items-center gap-1 focus:outline-none">
+                            <i data-lucide="message-square-code" class="w-3.5 h-3.5 text-indigo-400"></i>
+                            <span class="toolbar-label text-[10px] font-bold">Log</span>
+                        </button>
                     </div>
                 </div>
 
-                <!-- Simulation Visual Field Arena -->
-                <div class="flex-1 relative bg-slate-950/70 border border-slate-850 rounded-lg overflow-hidden" id="visualizer-container">
-                    
+                <!-- ── CANVAS AREA (fills remaining space) ──────────────── -->
+                <div class="flex-1 relative bg-slate-950/70 border-t-0 rounded-b-xl overflow-hidden" id="visualizer-container" style="min-height:240px;">
+
+                    <!-- Mobile drag tip (fades after sim starts) -->
+                    <div id="mobile-drag-tip" class="absolute top-2 left-2 z-30 pointer-events-none bg-slate-950/80 backdrop-blur border border-slate-800 text-[10px] text-slate-400 px-2 py-1 rounded-md flex items-center gap-1 sm:hidden">
+                        <span>📱 Drag · Pinch to zoom</span>
+                    </div>
+
+                    <!-- ── SCENARIO SETTINGS DRAWER ──────────────────────
+                         Desktop: left side-drawer sliding in from left
+                         Mobile:  bottom sheet sliding up from bottom       -->
+                    <div id="scenario-settings-drawer"
+                        class="bg-slate-900/98 border border-slate-800 shadow-2xl flex flex-col justify-between rounded-2xl overflow-hidden">
+
+                        <div class="p-4 flex-1 overflow-y-auto">
+                            <!-- Header -->
+                            <div class="flex items-center justify-between mb-4 pb-2.5 border-b border-slate-800">
+                                <div class="flex items-center gap-2">
+                                    <i data-lucide="sliders" class="w-4 h-4 text-indigo-400"></i>
+                                    <h3 class="font-bold text-xs tracking-wide text-white uppercase">Tune Scenario</h3>
+                                </div>
+                                <button id="btn-close-settings" title="Close Settings" class="p-1.5 rounded-lg hover:bg-slate-800 text-slate-400 hover:text-slate-200 transition">
+                                    <i data-lucide="x" class="w-4 h-4"></i>
+                                </button>
+                            </div>
+
+                            <!-- Now Showing (current mode) indicator inside drawer -->
+                            <div class="mb-4 p-2.5 bg-slate-950 border border-slate-800 rounded-lg">
+                                <span class="text-[10px] font-bold text-slate-500 uppercase tracking-wider block mb-1">Currently Viewing:</span>
+                                <div class="flex items-center gap-1.5">
+                                    <div class="w-2 h-2 rounded-full bg-amber-500 animate-pulse" id="drawer-status-dot"></div>
+                                    <span id="drawer-mode-label" class="text-xs font-bold text-amber-400 font-mono">Option A: Old System</span>
+                                </div>
+                                <!-- Option switcher inside drawer -->
+                                <div class="flex gap-1 mt-2">
+                                    <button id="drawer-tab-p2p" class="flex-1 py-1.5 text-[10px] font-bold rounded-md text-amber-400 bg-amber-500/10 border border-amber-500/20 transition">A: Old System</button>
+                                    <button id="drawer-tab-async" class="flex-1 py-1.5 text-[10px] font-medium rounded-md text-slate-400 hover:text-slate-200 border border-transparent transition">B: Upgraded</button>
+                                </div>
+                            </div>
+
+                            <!-- Presets -->
+                            <div class="mb-4">
+                                <span class="text-[10px] font-bold text-slate-500 uppercase tracking-wider block mb-2">Quick Scenarios:</span>
+                                <div class="grid grid-cols-3 gap-1.5">
+                                    <button id="preset-normal" type="button" title="Normal Traffic"
+                                        class="py-2 px-1 bg-slate-950 hover:bg-slate-850 border border-slate-800 hover:border-emerald-500/50 rounded-lg text-[10px] font-bold text-slate-300 hover:text-emerald-400 transition text-center">
+                                        🟢 Normal
+                                    </button>
+                                    <button id="preset-flash" type="button" title="Flash Sale Traffic"
+                                        class="py-2 px-1 bg-slate-950 hover:bg-slate-850 border border-slate-800 hover:border-amber-500/50 rounded-lg text-[10px] font-bold text-slate-300 hover:text-amber-400 transition text-center">
+                                        🟡 Flash
+                                    </button>
+                                    <button id="preset-peak" type="button" title="CNY Midnight Peak Traffic"
+                                        class="py-2 px-1 bg-slate-950 hover:bg-slate-850 border border-slate-800 hover:border-rose-500/50 rounded-lg text-[10px] font-bold text-slate-300 hover:text-rose-400 transition text-center">
+                                        🔴 Peak
+                                    </button>
+                                </div>
+                                <div id="preset-toast" class="hidden mt-2 text-[10px] text-indigo-400 bg-indigo-500/10 border border-indigo-500/20 rounded px-2 py-1 text-center font-medium"></div>
+                            </div>
+                            
+                            <!-- Sliders -->
+                            <div class="space-y-4 text-xs">
+                                <div>
+                                    <div class="flex justify-between mb-1">
+                                        <span class="text-slate-400 font-medium" title="How many shoppers try to buy during the simulation">Total shoppers:</span>
+                                        <span id="val-total-reqs" class="font-mono text-emerald-400 font-bold">100</span>
+                                    </div>
+                                    <input type="range" id="param-total-reqs" min="20" max="250" step="10" value="100" class="w-full accent-emerald-500 bg-slate-800 rounded-lg appearance-none h-1.5 cursor-pointer">
+                                </div>
+                                <div>
+                                    <div class="flex justify-between mb-1">
+                                        <span class="text-slate-400 font-medium" title="How many shoppers can check out at the exact same time">Simultaneous checkouts:</span>
+                                        <span id="val-concurrency" class="font-mono text-emerald-400 font-bold">15</span>
+                                    </div>
+                                    <input type="range" id="param-concurrency" min="1" max="40" step="1" value="15" class="w-full accent-emerald-500 bg-slate-800 rounded-lg appearance-none h-1.5 cursor-pointer">
+                                </div>
+
+                                <div>
+                                    <div class="flex justify-between mb-1">
+                                        <span class="text-slate-400 font-medium" title="How long a shopper will wait before getting frustrated and leaving">Shopper patience (timeout):</span>
+                                        <span id="val-timeout" class="font-mono text-rose-400 font-bold">500 ms</span>
+                                    </div>
+                                    <input type="range" id="param-timeout" min="200" max="1500" step="50" value="500" class="w-full accent-rose-500 bg-slate-800 rounded-lg appearance-none h-1.5 cursor-pointer">
+                                </div>
+
+                                <div class="pt-2 border-t border-slate-800">
+                                    <div class="flex justify-between mb-1">
+                                        <span class="text-slate-400 font-medium" title="Controls how fast the demo animation plays">Animation speed:</span>
+                                        <span id="val-speed" class="font-mono text-amber-400 font-bold">1.25x</span>
+                                    </div>
+                                    <input type="range" id="param-speed" min="0.25" max="3" step="0.25" value="1.25" class="w-full accent-amber-500 bg-slate-800 rounded-lg appearance-none h-1.5 cursor-pointer">
+                                </div>
+
+                                <!-- WS-5: Revenue Impact Calculator -->
+                                <div class="pt-2 border-t border-slate-800">
+                                    <div class="flex justify-between items-center mb-1">
+                                        <span class="text-slate-400 font-medium" title="Enter the average value of a single customer order to calculate estimated revenue loss">Avg Order Value:</span>
+                                        <span class="font-mono text-emerald-400 font-bold flex items-center">RM<input type="number" id="param-avg-order" value="150" min="1" max="10000" step="1" class="w-14 ml-1 bg-slate-950 border border-slate-750 rounded px-1 py-0.5 text-emerald-400 font-mono font-bold text-xs text-right focus:border-emerald-500 focus:outline-none"></span>
+                                    </div>
+                                </div>
+
+                                <!-- WS-6b: Fine-tune Latency -->
+                                <div class="pt-2 border-t border-slate-800">
+                                    <button id="toggle-backend" type="button" class="text-xs text-slate-500 hover:text-slate-300 transition flex items-center gap-1.5 mb-2 focus:outline-none">
+                                        <i data-lucide="settings" class="w-3.5 h-3.5"></i>
+                                        <span id="toggle-backend-label">⚙️ Fine-tune latencies ▸</span>
+                                    </button>
+                                    <div id="backend-sliders" class="hidden space-y-3">
+                                        <div>
+                                            <div class="flex justify-between mb-1">
+                                                <span class="text-slate-400 font-medium" title="How fast the payment processing service responds">Payment latency:</span>
+                                                <span id="val-latency-pay" class="font-mono text-amber-400 font-bold">150 ms</span>
+                                            </div>
+                                            <input type="range" id="param-latency-pay" min="50" max="500" step="10" value="150" class="w-full accent-amber-500 bg-slate-800 rounded-lg appearance-none h-1.5 cursor-pointer">
+                                        </div>
+                                        <div>
+                                            <div class="flex justify-between mb-1">
+                                                <span class="text-slate-400 font-medium" title="How fast the stock & warehouse system responds">Inventory latency:</span>
+                                                <span id="val-latency-inv" class="font-mono text-pink-400 font-bold">100 ms</span>
+                                            </div>
+                                            <input type="range" id="param-latency-inv" min="50" max="300" step="10" value="100" class="w-full accent-pink-500 bg-slate-850 rounded-lg appearance-none h-1.5 cursor-pointer">
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- Actions at bottom of drawer -->
+                        <div class="p-4 pt-3 border-t border-slate-800 space-y-2 shrink-0">
+                            <div class="grid grid-cols-2 gap-1.5">
+                                <button id="btn-run-p2p" type="button" title="Run Option A: Old system demo"
+                                    class="py-2.5 px-3 bg-amber-600 hover:bg-amber-500 text-white rounded-lg font-bold text-xs flex items-center justify-center gap-1.5 transition">
+                                    <i data-lucide="play" class="w-3.5 h-3.5"></i> Old System
+                                </button>
+                                <button id="btn-run-async" type="button" title="Run Option B: Upgraded system demo"
+                                    class="py-2.5 px-3 bg-emerald-600 hover:bg-emerald-500 text-white rounded-lg font-bold text-xs flex items-center justify-center gap-1.5 transition">
+                                    <i data-lucide="play" class="w-3.5 h-3.5"></i> Upgraded
+                                </button>
+                            </div>
+                            <button id="btn-reset" type="button" title="Clear metrics and reset simulation"
+                                class="w-full py-1.5 px-3 bg-slate-950 hover:bg-slate-800 text-slate-400 rounded-lg font-semibold text-xs flex items-center justify-center gap-1.5 border border-slate-800 transition">
+                                <i data-lucide="rotate-ccw" class="w-3.5 h-3.5"></i> Reset Everything
+                            </button>
+                        </div>
+                    </div>
+
+                    <!-- Bottom-sheet backdrop (mobile only, outside drawer) -->
+                    <div id="bottom-sheet-backdrop"></div>
+
                     <!-- Dynamic Viewport Area -->
-                    <div id="visual-viewport" class="absolute top-0 left-0 right-0 bottom-28 origin-center select-none transition-transform duration-75">
-                        
+                    <div id="visual-viewport" class="absolute top-0 left-0 w-[800px] h-[320px] origin-center select-none transition-transform duration-75">
+
                         <!-- Nodes Grid Layout -->
                         <div class="absolute inset-0 grid grid-cols-5 items-center p-4 gap-4 text-center select-none" id="node-container">
-                            
+
                             <!-- Client Nodes Layer -->
                             <div class="flex flex-col items-center justify-center gap-1.5 sm:gap-2 h-full">
                                 <div id="node-client" title="These are the shoppers browsing your website and trying to buy" class="w-12 h-12 sm:w-16 sm:h-16 rounded-full bg-slate-800 border-2 border-slate-600 flex items-center justify-center shadow-lg transition-all duration-300">
@@ -635,7 +759,7 @@
 
                         </div>
 
-                        <!-- WS-3c: Flow lines paths layer overlay (increased opacity + color) -->
+                        <!-- WS-3c: Flow lines paths layer overlay -->
                         <svg class="absolute inset-0 w-full h-full pointer-events-none opacity-45 z-0">
                             <line x1="10%" y1="50%" x2="30%" y2="50%" stroke="white" stroke-width="2.5" stroke-dasharray="5" />
                             <g id="svg-p2p-paths">
@@ -673,19 +797,34 @@
                     <!-- WS-4: Summary Modal Container (hidden by default, shown after sim) -->
                     <div id="summary-modal-container" class="hidden absolute bottom-0 left-0 right-0 z-40"></div>
 
-                    <!-- Presenter Dynamic Actions Commentary Overlays -->
-                    <div class="absolute bottom-3 left-3 right-3 bg-slate-900/95 border border-slate-800 rounded-lg p-2.5 z-20 max-h-28 overflow-y-auto text-xs text-slate-300 font-mono shadow-inner relative">
-                        <div class="flex items-center gap-1.5 text-indigo-400 font-bold sticky top-0 bg-slate-900 py-0.5 border-b border-slate-800">
-                            <i data-lucide="message-square-code" class="w-4 h-4"></i> Live Commentary
+                </div>
+
+
+                <!-- ── LIVE COMMENTARY BAR (collapsible footer) ─────────── -->
+                <div class="border-t border-slate-800 shrink-0 bg-slate-950/90">
+                    <!-- Toggle header (always visible, tappable) -->
+                    <button id="btn-expand-commentary" class="w-full flex items-center justify-between px-3 py-2 hover:bg-slate-800/40 transition group">
+                        <div class="flex items-center gap-2 text-indigo-400">
+                            <i data-lucide="message-square-code" class="w-3.5 h-3.5"></i>
+                            <span class="text-[10px] font-bold uppercase tracking-wider">Live Commentary</span>
+                            <span id="commentary-new-badge" class="hidden text-[9px] bg-indigo-500/20 text-indigo-400 border border-indigo-500/30 px-1.5 py-0.5 rounded-full font-bold">NEW</span>
                         </div>
-                        <!-- WS-7f: Scroll indicator -->
-                        <div id="log-scroll-indicator" class="hidden absolute top-8 right-3 text-xs text-slate-600 bg-slate-900/90 px-2 py-0.5 rounded border border-slate-800">↑ scroll for more</div>
-                        <div id="telemetry-log" class="space-y-1 mt-1">
-                            <div class="text-slate-500">// Welcome! Click "Step 1" or "Step 2" in the left panel to start the guided demo...</div>
+                        <div class="flex items-center gap-2">
+                            <span id="commentary-last-line" class="text-[10px] text-slate-500 font-mono max-w-[140px] sm:max-w-xs truncate hidden sm:block"></span>
+                            <i data-lucide="chevron-up" id="commentary-chevron" class="w-3.5 h-3.5 text-slate-500 group-hover:text-slate-300 transition-transform duration-300 rotate-180"></i>
+                        </div>
+                    </button>
+                    <!-- Expandable log area -->
+                    <div id="commentary-bar" class="">
+                        <div class="px-3 pb-2 max-h-[130px] overflow-y-auto relative">
+                            <div id="log-scroll-indicator" class="hidden absolute top-1 right-3 text-xs text-slate-600 bg-slate-950/90 px-2 py-0.5 rounded border border-slate-800">↑ scroll</div>
+                            <div id="telemetry-log" class="space-y-1 font-mono text-[10px]">
+                                <div class="text-slate-500">// Welcome! Click "Step 1" or "Step 2" to start the guided demo...</div>
+                            </div>
                         </div>
                     </div>
-
                 </div>
+
             </div>
 
             <!-- Business & Customer Experience (CX) Metrics Dashboard -->
@@ -896,7 +1035,12 @@
 
             // WS-7a: Breadcrumb stepper state
             currentStep: 1, // 1=Learn, 2=OldSystem, 3=Upgrade
-            completedSteps: new Set()
+            completedSteps: new Set(),
+
+            // Viewport scale & pan states
+            zoomLevel: 100,
+            panX: 0,
+            panY: 0
         };
 
         // DOM elements
@@ -922,6 +1066,9 @@
             pauseIcon: document.getElementById('pause-icon'),
             pauseLabel: document.getElementById('pause-label'),
             btnExport: document.getElementById('btn-export'),
+            btnToggleSettings: document.getElementById('btn-toggle-settings'),
+            btnCloseSettings: document.getElementById('btn-close-settings'),
+            scenarioSettingsDrawer: document.getElementById('scenario-settings-drawer'),
 
             tabP2P: document.getElementById('tab-p2p'),
             tabAsync: document.getElementById('tab-async'),
@@ -1006,7 +1153,24 @@
 
             // Onboarding
             onboardingOverlay: document.getElementById('onboarding-overlay'),
-            onboardingDismiss: document.getElementById('onboarding-dismiss')
+            onboardingDismiss: document.getElementById('onboarding-dismiss'),
+
+            // Drawer inner mode sync
+            drawerStatusDot: document.getElementById('drawer-status-dot'),
+            drawerModeLabel: document.getElementById('drawer-mode-label'),
+            drawerTabP2P: document.getElementById('drawer-tab-p2p'),
+            drawerTabAsync: document.getElementById('drawer-tab-async'),
+
+            // Commentary bar elements
+            btnExpandCommentary: document.getElementById('btn-expand-commentary'),
+            btnToggleCommentary: document.getElementById('btn-toggle-commentary'),
+            commentaryBar: document.getElementById('commentary-bar'),
+            commentaryChevron: document.getElementById('commentary-chevron'),
+            commentaryNewBadge: document.getElementById('commentary-new-badge'),
+            commentaryLastLine: document.getElementById('commentary-last-line'),
+
+            // Bottom-sheet backdrop
+            bottomSheetBackdrop: document.getElementById('bottom-sheet-backdrop')
         };
 
         // WS-7e: Pause-aware sleep utility
@@ -1064,33 +1228,56 @@
         elements.tabP2P.addEventListener('click', () => switchMode('p2p'));
         elements.tabAsync.addEventListener('click', () => switchMode('async'));
 
+        function syncDrawerModeLabel(mode) {
+            const dot = elements.drawerStatusDot;
+            const label = elements.drawerModeLabel;
+            const dtP2P = elements.drawerTabP2P;
+            const dtAsync = elements.drawerTabAsync;
+            if (!dot || !label) return;
+            if (mode === 'p2p') {
+                dot.className = 'w-2 h-2 rounded-full bg-amber-500 animate-pulse';
+                label.innerText = 'Option A: Old System';
+                label.className = 'text-xs font-bold text-amber-400 font-mono';
+                if (dtP2P) dtP2P.className = 'flex-1 py-1.5 text-[10px] font-bold rounded-md text-amber-400 bg-amber-500/10 border border-amber-500/20 transition';
+                if (dtAsync) dtAsync.className = 'flex-1 py-1.5 text-[10px] font-medium rounded-md text-slate-400 hover:text-slate-200 border border-transparent transition';
+            } else {
+                dot.className = 'w-2 h-2 rounded-full bg-emerald-500 animate-pulse';
+                label.innerText = 'Option B: Smart Queue';
+                label.className = 'text-xs font-bold text-emerald-400 font-mono';
+                if (dtAsync) dtAsync.className = 'flex-1 py-1.5 text-[10px] font-bold rounded-md text-emerald-400 bg-emerald-500/10 border border-emerald-500/20 transition';
+                if (dtP2P) dtP2P.className = 'flex-1 py-1.5 text-[10px] font-medium rounded-md text-slate-400 hover:text-slate-200 border border-transparent transition';
+            }
+        }
+
         function switchMode(mode) {
             if (state.isRunning) return;
             state.activeMode = mode;
 
             if (mode === 'p2p') {
-                elements.tabP2P.className = "px-4 py-2 rounded-md font-medium text-amber-400 bg-amber-500/10 border border-amber-500/20 transition";
-                elements.tabAsync.className = "px-4 py-2 rounded-md font-medium text-slate-400 hover:text-slate-200 transition";
+                elements.tabP2P.className = "px-2 py-1.5 rounded-md font-bold text-amber-400 bg-amber-500/10 border border-amber-500/20 transition whitespace-nowrap";
+                elements.tabAsync.className = "px-2 py-1.5 rounded-md font-medium text-slate-400 hover:text-slate-200 transition whitespace-nowrap";
                 elements.p2pSubLayout.classList.remove('hidden');
                 elements.asyncSubLayout.classList.add('hidden');
                 elements.svgP2PPaths.classList.remove('hidden');
                 elements.svgAsyncPaths.classList.add('hidden');
                 elements.asyncWorkersDisplay.classList.add('hidden');
-                elements.visualizerTitle.innerText = "Option A: Old Checkout (Customers Wait)";
-                elements.visualizerTitle.className = "text-amber-400 font-mono";
-                elements.visualizerStatusDot.className = "w-3.5 h-3.5 rounded-full bg-amber-500 animate-pulse";
+                elements.visualizerTitle.innerText = "Option A: Old Checkout";
+                elements.visualizerTitle.className = "text-xs font-bold text-amber-400 font-mono truncate";
+                elements.visualizerStatusDot.className = "w-2.5 h-2.5 rounded-full bg-amber-500 animate-pulse shrink-0";
+                syncDrawerModeLabel('p2p');
                 logTelemetry("Viewing: Old system — shoppers must wait in line.");
             } else {
-                elements.tabAsync.className = "px-4 py-2 rounded-md font-medium text-emerald-400 bg-emerald-500/10 border border-emerald-500/20 transition";
-                elements.tabP2P.className = "px-4 py-2 rounded-md font-medium text-slate-400 hover:text-slate-200 transition";
+                elements.tabAsync.className = "px-2 py-1.5 rounded-md font-bold text-emerald-400 bg-emerald-500/10 border border-emerald-500/20 transition whitespace-nowrap";
+                elements.tabP2P.className = "px-2 py-1.5 rounded-md font-medium text-slate-400 hover:text-slate-200 transition whitespace-nowrap";
                 elements.p2pSubLayout.classList.add('hidden');
                 elements.asyncSubLayout.classList.remove('hidden');
                 elements.svgP2PPaths.classList.add('hidden');
                 elements.svgAsyncPaths.classList.remove('hidden');
                 elements.asyncWorkersDisplay.classList.remove('hidden');
-                elements.visualizerTitle.innerText = "Option B: Smart Queue (Instant Confirmation)";
-                elements.visualizerTitle.className = "text-emerald-400 font-mono";
-                elements.visualizerStatusDot.className = "w-3.5 h-3.5 rounded-full bg-emerald-500 animate-pulse";
+                elements.visualizerTitle.innerText = "Option B: Smart Queue";
+                elements.visualizerTitle.className = "text-xs font-bold text-emerald-400 font-mono truncate";
+                elements.visualizerStatusDot.className = "w-2.5 h-2.5 rounded-full bg-emerald-500 animate-pulse shrink-0";
+                syncDrawerModeLabel('async');
                 logTelemetry("Viewing: Upgraded system — shoppers get instant confirmation.");
             }
         }
@@ -1104,16 +1291,29 @@
             if (type === 'error') colorClass = 'text-rose-500 font-bold';
 
             const logItem = document.createElement('div');
-            logItem.className = `text-xs ${colorClass}`;
-            logItem.innerHTML = `<span class="text-slate-500">[${timeStr}]</span> ${message}`;
+            logItem.className = colorClass;
+            logItem.innerHTML = `<span class="text-slate-600">[${timeStr}]</span> ${message}`;
             elements.telemetryLog.appendChild(logItem);
-            
+
+            // Update last-line preview in commentary bar header
+            if (elements.commentaryLastLine) {
+                const stripped = message.replace(/<[^>]+>/g, '').replace(/\s+/g, ' ').trim();
+                elements.commentaryLastLine.textContent = stripped;
+            }
+
+            // Show NEW badge if commentary bar is collapsed
+            const bar = elements.commentaryBar;
+            if (bar && !bar.classList.contains('expanded') && elements.commentaryNewBadge) {
+                elements.commentaryNewBadge.classList.remove('hidden');
+            }
+
             // Smooth auto-scroll
             logItem.scrollIntoView({ behavior: 'smooth', block: 'end' });
 
             // WS-7f: Update scroll indicator
             updateScrollIndicator();
         }
+
 
         // WS-7f: Scroll indicator logic
         function updateScrollIndicator() {
@@ -1131,15 +1331,18 @@
 
         // Particle generator for visual flow
         function createParticle(startEl, endEl, color = 'emerald', emoji = '🛒') {
-            const container = elements.visualizerContainer;
+            const container = document.getElementById('visual-viewport');
+            if (!container) return;
+            
             const startRect = startEl.getBoundingClientRect();
             const endRect = endEl.getBoundingClientRect();
             const containerRect = container.getBoundingClientRect();
 
-            const x1 = startRect.left - containerRect.left + (startRect.width / 2);
-            const y1 = startRect.top - containerRect.top + (startRect.height / 2);
-            const x2 = endRect.left - containerRect.left + (endRect.width / 2);
-            const y2 = endRect.top - containerRect.top + (endRect.height / 2);
+            const scale = (state.zoomLevel / 100) || 1.0;
+            const x1 = (startRect.left - containerRect.left + (startRect.width / 2)) / scale;
+            const y1 = (startRect.top - containerRect.top + (startRect.height / 2)) / scale;
+            const x2 = (endRect.left - containerRect.left + (endRect.width / 2)) / scale;
+            const y2 = (endRect.top - containerRect.top + (endRect.height / 2)) / scale;
 
             const particle = document.createElement('div');
             particle.className = `particle bg-${color}-500 text-white font-bold`;
@@ -1858,6 +2061,47 @@
         elements.btnRunP2P.addEventListener('click', runP2PSimulation);
         elements.btnRunAsync.addEventListener('click', runAsyncSimulation);
 
+        // Zoom, pan, and auto-fit core operations
+        function applyZoomAndPan() {
+            const viewport = document.getElementById('visual-viewport');
+            const zoomText = document.getElementById('txt-zoom-level');
+            if (viewport) {
+                viewport.style.transform = `translate(${state.panX}px, ${state.panY}px) scale(${state.zoomLevel / 100})`;
+            }
+            if (zoomText) {
+                zoomText.innerText = `${state.zoomLevel}%`;
+            }
+        }
+
+        function autoFitViewport() {
+            const container = elements.visualizerContainer;
+            const viewport = document.getElementById('visual-viewport');
+            if (!container || !viewport) return;
+
+            const containerWidth = container.clientWidth;
+            // Reserve height for Live Commentary container layout space
+            const containerHeight = container.clientHeight - 130;
+
+            const logicalWidth = 800;
+            const logicalHeight = 320;
+
+            const scaleX = (containerWidth - 24) / logicalWidth;
+            const scaleY = (containerHeight - 16) / logicalHeight;
+
+            let scale = Math.min(scaleX, scaleY);
+            if (scale > 1.1) scale = 1.1;
+            if (scale < 0.35) scale = 0.35;
+
+            state.zoomLevel = Math.round(scale * 100);
+
+            // Center alignment
+            state.panX = (containerWidth - logicalWidth) / 2;
+            state.panY = (containerHeight - logicalHeight) / 2;
+            if (state.panY < 10) state.panY = 10;
+
+            applyZoomAndPan();
+        }
+
         // Initial setup
         window.addEventListener('DOMContentLoaded', () => {
             syncControls();
@@ -1866,49 +2110,32 @@
             updateBreadcrumb(1);
             
             // Interactive Zoom & Canvas Drag/Swipe Panning setup
-            let zoomLevel = 100;
-            let panX = 0;
-            let panY = 0;
             let isDragging = false;
             let dragStartX = 0;
             let dragStartY = 0;
 
-            const viewport = document.getElementById('visual-viewport');
             const visualizerContainer = document.getElementById('visualizer-container');
             const zoomIn = document.getElementById('btn-zoom-in');
             const zoomOut = document.getElementById('btn-zoom-out');
             const zoomReset = document.getElementById('btn-zoom-reset');
-            const zoomText = document.getElementById('txt-zoom-level');
-
-            function applyZoomAndPan() {
-                if (viewport) {
-                    viewport.style.transform = `translate(${panX}px, ${panY}px) scale(${zoomLevel / 100})`;
-                }
-                if (zoomText) {
-                    zoomText.innerText = `${zoomLevel}%`;
-                }
-            }
 
             if (zoomIn) {
                 zoomIn.addEventListener('click', () => {
-                    zoomLevel = Math.min(150, zoomLevel + 10);
+                    state.zoomLevel = Math.min(150, state.zoomLevel + 10);
                     applyZoomAndPan();
                 });
             }
 
             if (zoomOut) {
                 zoomOut.addEventListener('click', () => {
-                    zoomLevel = Math.max(50, zoomLevel - 10);
+                    state.zoomLevel = Math.max(50, state.zoomLevel - 10);
                     applyZoomAndPan();
                 });
             }
 
             if (zoomReset) {
                 zoomReset.addEventListener('click', () => {
-                    zoomLevel = 100;
-                    panX = 0;
-                    panY = 0;
-                    applyZoomAndPan();
+                    autoFitViewport();
                 });
             }
 
@@ -1920,14 +2147,14 @@
                     if (e.target.closest('button') || e.target.closest('input') || e.target.closest('#summary-modal-container') || e.target.closest('#summary-modal')) return;
                     isDragging = true;
                     visualizerContainer.style.cursor = 'grabbing';
-                    dragStartX = e.clientX - panX;
-                    dragStartY = e.clientY - panY;
+                    dragStartX = e.clientX - state.panX;
+                    dragStartY = e.clientY - state.panY;
                 });
 
                 window.addEventListener('mousemove', (e) => {
                     if (!isDragging) return;
-                    panX = e.clientX - dragStartX;
-                    panY = e.clientY - dragStartY;
+                    state.panX = e.clientX - dragStartX;
+                    state.panY = e.clientY - dragStartY;
                     applyZoomAndPan();
                 });
 
@@ -1943,16 +2170,16 @@
                     if (e.target.closest('button') || e.target.closest('input') || e.target.closest('#summary-modal-container') || e.target.closest('#summary-modal')) return;
                     if (e.touches.length === 1) {
                         isDragging = true;
-                        dragStartX = e.touches[0].clientX - panX;
-                        dragStartY = e.touches[0].clientY - panY;
+                        dragStartX = e.touches[0].clientX - state.panX;
+                        dragStartY = e.touches[0].clientY - state.panY;
                     }
                 }, { passive: true });
 
                 visualizerContainer.addEventListener('touchmove', (e) => {
                     if (!isDragging) return;
                     if (e.touches.length === 1) {
-                        panX = e.touches[0].clientX - dragStartX;
-                        panY = e.touches[0].clientY - dragStartY;
+                        state.panX = e.touches[0].clientX - dragStartX;
+                        state.panY = e.touches[0].clientY - dragStartY;
                         applyZoomAndPan();
                     }
                 }, { passive: true });
@@ -1961,6 +2188,141 @@
                     isDragging = false;
                 });
             }
+
+            // Scenario settings drawer toggle listeners
+            const drawer = elements.scenarioSettingsDrawer;
+            const toggleBtn = elements.btnToggleSettings;
+            const closeBtn = elements.btnCloseSettings;
+            const backdrop = elements.bottomSheetBackdrop;
+
+            const isMobile = () => window.innerWidth < 640;
+
+            function isDrawerOpen() {
+                return drawer ? drawer.classList.contains('open') : false;
+            }
+
+            function openDrawer() {
+                if (!drawer) return;
+                drawer.classList.add('open');
+                if (backdrop) {
+                    backdrop.classList.add('open');
+                }
+                if (toggleBtn) {
+                    toggleBtn.classList.add('bg-indigo-600', 'border-indigo-500', 'text-white');
+                    toggleBtn.classList.remove('bg-slate-800', 'border-slate-700', 'text-slate-300');
+                }
+            }
+
+            function closeDrawer() {
+                if (!drawer) return;
+                drawer.classList.remove('open');
+                if (backdrop) {
+                    backdrop.classList.remove('open');
+                }
+                if (toggleBtn) {
+                    toggleBtn.classList.add('bg-slate-800', 'border-slate-700', 'text-slate-300');
+                    toggleBtn.classList.remove('bg-indigo-600', 'border-indigo-500', 'text-white');
+                }
+            }
+
+            function toggleDrawer() {
+                if (isDrawerOpen()) {
+                    closeDrawer();
+                } else {
+                    openDrawer();
+                }
+            }
+
+            // Initialise drawer closed state: we do not add utility translate classes since CSS handles defaults
+
+            // Backdrop tap closes drawer on mobile
+            if (backdrop) {
+                backdrop.addEventListener('click', closeDrawer);
+            }
+
+            if (toggleBtn) {
+                toggleBtn.addEventListener('click', (e) => {
+                    e.stopPropagation();
+                    toggleDrawer();
+                });
+            }
+
+            if (closeBtn) {
+                closeBtn.addEventListener('click', (e) => {
+                    e.stopPropagation();
+                    closeDrawer();
+                });
+            }
+
+            // Wire up drawer inner tab buttons (mirrors the toolbar tabs)
+            if (elements.drawerTabP2P) {
+                elements.drawerTabP2P.addEventListener('click', () => { switchMode('p2p'); });
+            }
+            if (elements.drawerTabAsync) {
+                elements.drawerTabAsync.addEventListener('click', () => { switchMode('async'); });
+            }
+
+            // btn-toggle-commentary (toolbar) toggles commentary bar
+            let commentaryOpen = false;
+            function toggleCommentary(open) {
+                const bar = elements.commentaryBar;
+                const chevron = elements.commentaryChevron;
+                const badge = elements.commentaryNewBadge;
+                if (!bar) return;
+                commentaryOpen = open !== undefined ? open : !commentaryOpen;
+                if (commentaryOpen) {
+                    bar.classList.add('expanded');
+                    if (chevron) chevron.style.transform = 'rotate(0deg)';
+                    if (badge) badge.classList.add('hidden');
+                } else {
+                    bar.classList.remove('expanded');
+                    if (chevron) chevron.style.transform = 'rotate(180deg)';
+                }
+            }
+
+            if (elements.btnExpandCommentary) {
+                elements.btnExpandCommentary.addEventListener('click', () => toggleCommentary());
+            }
+            if (elements.btnToggleCommentary) {
+                elements.btnToggleCommentary.addEventListener('click', () => toggleCommentary());
+            }
+
+            // Start commentary expanded
+            toggleCommentary(true);
+
+            // Close settings sidebar drawer when clicking outside it (desktop)
+            window.addEventListener('click', (e) => {
+                if (!isMobile() && drawer && isDrawerOpen()) {
+                    if (!drawer.contains(e.target) && (!toggleBtn || !toggleBtn.contains(e.target))) {
+                        closeDrawer();
+                    }
+                }
+            });
+
+            // Close on ESC keypress
+            window.addEventListener('keydown', (e) => {
+                if (e.key === 'Escape') {
+                    closeDrawer();
+                }
+            });
+
+            // Re-init drawer state on orientation/resize change
+            window.addEventListener('resize', () => {
+                // Reset drawer to closed state on resize to avoid UI conflicts
+                closeDrawer();
+            });
+
+            // Close settings sidebar drawer when starting custom runs
+            if (elements.btnRunP2P) {
+                elements.btnRunP2P.addEventListener('click', () => closeDrawer());
+            }
+            if (elements.btnRunAsync) {
+                elements.btnRunAsync.addEventListener('click', () => closeDrawer());
+            }
+
+            // Perform auto fit initially and register resize listener
+            window.addEventListener('resize', autoFitViewport);
+            autoFitViewport();
         });
     </script>
 </body>
